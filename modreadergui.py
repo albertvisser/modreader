@@ -138,10 +138,13 @@ class MainFrame(qtw.QWidget):
             ## dir_, name = oupad, ''
         name, pattern = qtw.QFileDialog.getOpenFileName(self, "Open File", oupad,
             "Mod files (*.mod)")
-        if name != "":
+        if name != "" and name != oupad:
             self.vraag_modfile.setEditText(name)
-            self.vraag_modfile.addItem(name)
-            self._mru_items.add(name)
+            if name not in self._mru_items:
+                self._mru_items.add(name)
+                self.vraag_modfile.addItem(name)
+            self.list_samples.clear()
+            self.mark_samples.clear()
 
     def load_module(self, *args):
         pad = self.vraag_modfile.currentText()
@@ -151,10 +154,8 @@ class MainFrame(qtw.QWidget):
             return
         self.loaded = modreader.ModFile(pad)
         self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
-        self.list_samples.clear()
         self.list_samples.addItems(self.nondrums)
         self.drums = []
-        self.mark_samples.clear()
         ## print('initial:')
         ## print(self.nondrums)
         ## print(self.drums)
@@ -220,6 +221,8 @@ class MainFrame(qtw.QWidget):
             ## item = self.drums.pop(selindx)
             ## self.drums.insert(selindx - 1, item)
             self.mark_samples.insertItem(selindx - 1, item)
+            item.setSelected(True)
+            self.mark_samples.scrollToItem(item)
         ## print('after move down:', self.drums)
 
     def move_down(self, *args):
@@ -242,6 +245,8 @@ class MainFrame(qtw.QWidget):
             ## item = self.drums.pop(selindx)
             ## self.drums.insert(selindx + 1, item)
             self.mark_samples.insertItem(selindx + 1, item)
+            item.setSelected(True)
+            self.mark_samples.scrollToItem(item)
         ## print('after move down:', self.drums)
 
     def assign(self, *args):
@@ -268,26 +273,12 @@ class MainFrame(qtw.QWidget):
                 inst += " ({})".format(text)
             selected[0].setText(inst)
 
-        ## selindx = selected[0]
-        ## self._text = ""
-        ## w = AskString(self, prompt='Enter letter(s) to be printed for "{}"'.format(
-            ## self.drums[selindx]))
-        ## w.focus_set()
-        ## w.grab_set()
-        ## w.wait_window()
-        ## if self._text:
-            ## inst = self.drums[selindx].split()[0]
-            ## inst += " ({})".format(self._text)
-            ## self.mark_samples.delete(selindx)
-            ## self.mark_samples.insert(selindx, inst)
-            ## self.drums[selindx] = inst
-        ## print('after assign:', self.drums)
-
-
     def create_files(self):
         if not self.loaded:
             qtw.QMessageBox.information(self, 'Oops', 'Please load a module first')
             return
+
+        # get all letters assigned to sample
         samples, letters = [], []
         all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
             self.mark_samples))]
@@ -300,18 +291,36 @@ class MainFrame(qtw.QWidget):
             qtw.QMessageBox.information(self, 'Oops', 'Please assign letters '
                 'to *all* drumtracks')
             return
-        self.drums = [''] * len(self.mark_samples)
-        self.nondrums = [''] * len(self.list_samples)
+
+        drums = [] ## self.drums = [''] * len(self.mark_samples)
+        nondrums = [] ## self.nondrums = [''] * len(self.list_samples)
         printseq = "".join([x for x in letters if len(x) == 1])
+        ready = True
+        for x in set(''.join([x for x in letters])):
+            if x not in printseq:
+                new = qtw.QListWidgetItem('dummy_sample ({})'.format(x))
+                self.mark_samples.addItem(new)
+                self.mark_samples.scrollToItem(new)
+                self.mark_samples.currentItem().setSelected(False)
+                new.setSelected(True)
+                ready = False
+        if not ready:
+            qtw.QMessageBox.information(self, 'Oops', 'Please relocate the dummy '
+                'samples so their letters are in the right position')
+            return
+
         samples_2 = [self.list_samples.item(x).text().split()[0] for x in range(
             len(self.list_samples))]
         for num, data in self.loaded.samples.items():
             if data[0] in samples:
                 ix = samples.index(data[0])
-                self.drums[ix] = (num + 1, letters[ix])
+                ## self.drums[ix] = (num + 1, letters[ix])
+                drums.append((num + 1, letters[ix]))
             elif data[0] in samples_2:
                 ix = samples_2.index(data[0])
-                self.nondrums[ix] = (num + 1, data[0])
+                ## self.nondrums[ix] = (num + 1, data[0])
+                nondrums.append((num + 1, data[0]))
+
         pad = self.vraag_modfile.currentText()
         newdir = os.path.splitext(pad)[0]
         try:
@@ -322,11 +331,11 @@ class MainFrame(qtw.QWidget):
         with open(os.path.join(newdir, '{}-general'.format(datetimestamp)),
                 "w") as out:
             self.loaded.print_module_details(out)
-        if self.drums:
+        if drums:
             with open(os.path.join(newdir, '{}-drums'.format(datetimestamp)),
                     "w") as out:
-                self.loaded.print_drums(self.drums, printseq, out)
-        for number, name in self.nondrums:
+                self.loaded.print_drums(drums, printseq, out)
+        for number, name in nondrums:
             with open(os.path.join(newdir, '{}-{}'.format(datetimestamp, name)),
                     "w") as out:
                 self.loaded.print_instrument(number, out)
