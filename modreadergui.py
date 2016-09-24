@@ -101,6 +101,11 @@ class MainFrame(qtw.QWidget):
         hbox.addLayout(col)
         vbox.addLayout(hbox)
 
+        act = qtw.QAction('Assign/Edit', self)
+        act.setShortcut('F2')
+        act.triggered.connect(self.assign)
+        self.addAction(act)
+
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
         create_button = qtw.QPushButton("&Create transcription files", self)
@@ -252,11 +257,15 @@ class MainFrame(qtw.QWidget):
             qtw.QMessageBox.information(self, 'Oops', msg)
             return
         ## print('\ninitial:', self.drums)
-        inst = selected[0].text().split()[0]
+        try:
+            inst, data = selected[0].text().split()
+        except ValueError:
+            inst, data = selected[0].text(), ''
         text, ok = qtw.QInputDialog.getText(self, 'ModReaderGui',
-            'Enter letter(s) to be printed for "{}"'.format(inst))
-        if ok and text:
-            inst += " ({})".format(text)
+            'Enter letter(s) to be printed for "{}"'.format(inst), text=data[1:-1])
+        if ok:
+            if text:
+                inst += " ({})".format(text)
             selected[0].setText(inst)
 
         ## selindx = selected[0]
