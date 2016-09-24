@@ -1,0 +1,48 @@
+ModReader
+=========
+
+For a long time I wanted to make transcriptions of music I created on the Amiga,
+in the so-called SoundTracker Module format.
+
+Of course there were utilities to convert them into other formats, and I have used
+them e.g. to convert modules to midi files, but I still wanted to be able to make
+stuff visible outside of the program needed to manipulate the music data.
+
+So I built this "notation software for music trackers" - to view the notation in a
+regular texteditor instead of a program specialized to view music notation.
+
+In my implementation, drum instruments are shown together as indicators on which
+timing event they are played, like this::
+
+    h.h.h.h.h.h.h.h.
+    ....s.......s...
+    b.......b.......
+
+
+whereas instrument tracks are shown as a compressed piano roll, like this::
+
+    ... ... ... ... ... ... A 4 ... ... ... ... ... ... ... ... ...
+    ... ... ... ... E 4 ... ... ... E 4 ... ... ... ... ... ... ...
+    ... ... C#4 ... ... ... ... ... ... ... C#4 ... ... ... ... ...
+    A 3 ... ... ... ... ... ... ... ... ... ... ... A 3 ... ... ...
+
+It works in a few phases.
+
+For starters, you have to select the module to transcribe and load it.
+
+Next, you are presented with a list of the instrument samples used in the module.
+You have to transfer the drum samples to a second list and assign a letter to each.
+Because I have used samples that contain more than one drum instrument, I made it
+so that you can assign multiple letters to one instrument.
+It's also possible to redefine the vertical order of the drum instruments either
+by the sequence in which you transfer them or by reordering them in the list.
+
+When all that is done you can press the button and a directory is created (unless
+it already exists) "next to" the module file and files containing the transcripts
+are placed into it.
+You get one file for the collected drums, a file for each remaining instrument
+and a file containing some general data, such as the sequence of patterns.
+I added a date/time stamp to the names so that the process can be repeated without
+overwriting existing files.
+
+Dependencies: Python (3), PyQt5 for the most advanced version of the tool.
