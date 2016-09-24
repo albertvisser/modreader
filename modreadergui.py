@@ -154,7 +154,9 @@ class MainFrame(qtw.QWidget):
             return
         self.loaded = modreader.ModFile(pad)
         self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
+        self.list_samples.clear()
         self.list_samples.addItems(self.nondrums)
+        self.mark_samples.clear()
         self.drums = []
         ## print('initial:')
         ## print(self.nondrums)
@@ -295,6 +297,11 @@ class MainFrame(qtw.QWidget):
         drums = [] ## self.drums = [''] * len(self.mark_samples)
         nondrums = [] ## self.nondrums = [''] * len(self.list_samples)
         printseq = "".join([x for x in letters if len(x) == 1])
+        if len(printseq) != len(set(printseq)):
+            qtw.QMessageBox.information(self, 'Oops', 'Please correct multiple '
+                'assignments to the same letter')
+            return
+
         ready = True
         for x in set(''.join([x for x in letters])):
             if x not in printseq:
