@@ -78,8 +78,7 @@ class ModFile:
             self.name = str(_in.read(20), encoding='ascii')
             for x in range(31):
                 name, stats = get_sample(_in.read(30))
-                if name or stats not in ([0, 0, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 0, 1]):
+                if name or stats[:2] not in ([0, 0], [1, 0], [1, 0]):
                     self.samples[x] = name, stats
 
             songlength = ord(_in.read(1))
@@ -209,7 +208,7 @@ class ModFile:
                 note_found = False
                 for event in track:
                     samp, note, effect, _ = get_notedata(event)
-                    if samp == sample:
+                    if samp == sample and note:
                         all_events[pattnum][note].append(ix)
                         notes[pattnum].add(note)
                     if effect == 13:
