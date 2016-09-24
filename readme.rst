@@ -8,7 +8,8 @@ Of course there were utilities to convert them into other formats, and I have us
 them e.g. to convert modules to midi files, but I still wanted to be able to make
 stuff visible outside of the program needed to manipulate the music data.
 
-So I built this "notation software for music trackers" - to view the notation in a
+So I built this "notation software for music trackers" -
+to be able to view the notation in a
 regular texteditor instead of a program specialized to view music notation.
 
 In my implementation, drum instruments are shown together as indicators on which
@@ -19,7 +20,8 @@ timing event they are played, like this::
     b.......b.......
 
 
-whereas instrument tracks are shown as a compressed piano roll, like this::
+whereas instrument tracks are shown as a compressed (in the sense that only
+the notes played are shown) piano roll, like this::
 
     ... ... ... ... ... ... A 4 ... ... ... ... ... ... ... ... ...
     ... ... ... ... E 4 ... ... ... E 4 ... ... ... ... ... ... ...
