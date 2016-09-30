@@ -103,7 +103,8 @@ class ModFile:
 
     def print_module_details(self, _out):
         printable = "Details of module {}".format(self.filename)
-        data = [printable, "=" * len(printable), '', 'description: '+ self.name, '']
+        data = [printable, "=" * len(printable), '',
+            'description: ' + self.name.rstrip(chr(0)), '']
         for x, y in self.samples.items():
             data.append(("sample {:>2}: {}".format(x + 1, y)))
         ## print(test.restart)
