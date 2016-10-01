@@ -337,7 +337,10 @@ class MainFrame(qtw.QWidget):
         datetimestamp = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
         with open(os.path.join(newdir, '{}-general'.format(datetimestamp)),
                 "w") as out:
-            self.loaded.print_module_details(out)
+            if drums:
+                self.loaded.print_module_details(out, drums)
+            else:
+                self.loaded.print_module_details(out)
         if drums:
             with open(os.path.join(newdir, '{}-drums'.format(datetimestamp)),
                     "w") as out:

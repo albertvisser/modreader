@@ -101,12 +101,19 @@ class ModFile:
                     pattern.append(track)
                 self.patterns[x] = pattern
 
-    def print_module_details(self, _out):
+    def print_module_details(self, _out, sample_list=None):
         printable = "Details of module {}".format(self.filename)
         data = [printable, "=" * len(printable), '',
             'description: ' + self.name.rstrip(chr(0)), '']
-        for x, y in self.samples.items():
-            data.append(("sample {:>2}: {}".format(x + 1, y)))
+        for sample_number, sample_data in self.samples.items():
+            sample_name = sample_data[0]
+            sample_string = ''
+            if sample_list:
+                for sampnum, sampstr in sample_list:
+                    if sampnum == sample_number + 1:
+                        sample_string = sampstr.join((' (', ')'))
+            data.append(("sample {:>2}: {}".format(sample_number + 1,
+                sample_name + sample_string)))
         ## print(test.restart)
         ## print(test.highpatt)
         ## print(test.modtype)
