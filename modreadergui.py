@@ -106,6 +106,10 @@ class MainFrame(qtw.QWidget):
         assign_button = qtw.QPushButton('&Assign letter', self)
         assign_button.clicked.connect(self.assign)
         col.addWidget(assign_button)
+        self.remove_button = qtw.QPushButton('&Remove', self)
+        self.remove_button.clicked.connect(self.remove)
+        self.remove_button.setEnabled(False)
+        col.addWidget(self.remove_button)
         col.addStretch()
         hbox.addLayout(col)
         vbox.addLayout(hbox)
@@ -292,6 +296,26 @@ class MainFrame(qtw.QWidget):
                 inst += " ({})".format(text)
             selected[0].setText(inst)
 
+    def remove(self, *args):
+        selected = self.mark_samples.selectedItems()
+        msg = ''
+        if len(selected) == 0:
+            msg = 'Please select one or more instruments'
+        ## elif len(selected) > 1:
+            ## msg = 'One at a time, please (for now)'
+        else:
+            for item in selected:
+                selindex = self.mark_samples.row(item)
+                if not item.text().startswith('dummy_sample ('):
+                    msg = 'You can only remove dummy samples'
+                    break
+        if msg:
+            qtw.QMessageBox.information(self, 'Oops', msg)
+            return
+        for item in selected:
+            selindx = self.mark_samples.row(item)
+            self.mark_samples.takeItem(selindx)
+
     def create_files(self):
         if not self.loaded:
             qtw.QMessageBox.information(self, 'Oops', 'Please load a module first')
@@ -326,6 +350,7 @@ class MainFrame(qtw.QWidget):
                 self.mark_samples.scrollToItem(new)
                 self.mark_samples.currentItem().setSelected(False)
                 new.setSelected(True)
+                self.remove_button.setEnabled(True)
                 ready = False
         if not ready:
             qtw.QMessageBox.information(self, 'Oops', 'Please relocate the dummy '
