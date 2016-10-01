@@ -302,8 +302,7 @@ class MainFrame(qtw.QWidget):
         all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
             self.mark_samples))]
         try:
-            ## for x, y in [z.text().split(None, 1) for z in self.mark_samples.items()]:
-            for x, y in [z.split(None, 1) for z in all_item_texts]:
+            for x, y in [z.rsplit(None, 1) for z in all_item_texts]:
                 samples.append(x)
                 letters.append(y[1:-1])
         except ValueError:
@@ -311,8 +310,8 @@ class MainFrame(qtw.QWidget):
                 'to *all* drumtracks')
             return
 
-        drums = [] ## self.drums = [''] * len(self.mark_samples)
-        nondrums = [] ## self.nondrums = [''] * len(self.list_samples)
+        drums = []
+        nondrums = []
         printseq = "".join([x for x in letters if len(x) == 1])
         if len(printseq) != len(set(printseq)):
             qtw.QMessageBox.information(self, 'Oops', 'Please correct multiple '
@@ -338,11 +337,9 @@ class MainFrame(qtw.QWidget):
         for num, data in self.loaded.samples.items():
             if data[0] in samples:
                 ix = samples.index(data[0])
-                ## self.drums[ix] = (num + 1, letters[ix])
                 drums.append((num + 1, letters[ix]))
             elif data[0] in samples_2:
                 ix = samples_2.index(data[0])
-                ## self.nondrums[ix] = (num + 1, data[0])
                 nondrums.append((num + 1, data[0]))
 
         pad = self.vraag_modfile.currentText()
