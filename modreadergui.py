@@ -51,7 +51,7 @@ class MainFrame(qtw.QWidget):
         self.vraag_modfile.setEditText(self.filenaam)
         hbox.addWidget(self.vraag_modfile)
         zoek_button = qtw.QPushButton("&Browse", self)
-        zoek_button.clicked.connect(self.zoekfile)
+        zoek_button.clicked.connect(self.find_file)
         hbox.addWidget(zoek_button)
         hbox.addStretch()
         vbox.addLayout(hbox)
@@ -65,7 +65,7 @@ class MainFrame(qtw.QWidget):
         vbox.addLayout(hbox)
 
         hbox = qtw.QHBoxLayout()
-        hbox.addWidget(qtw.QLabel("Mark Drum Samples:", self))
+        hbox.addWidget(qtw.QLabel("Select + Move\nDrum Samples:", self))
 
         self.list_samples = qtw.QListWidget(self)
         self.list_samples.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
@@ -126,6 +126,10 @@ class MainFrame(qtw.QWidget):
         act.setShortcut('F2')
         act.triggered.connect(self.assign)
         self.addAction(act)
+        act = qtw.QAction('Remove', self)
+        act.setShortcut('Del')
+        act.triggered.connect(self.remove)
+        self.addAction(act)
 
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
@@ -143,12 +147,33 @@ class MainFrame(qtw.QWidget):
         hbox.addStretch()
         vbox.addLayout(hbox)
 
+        act = qtw.QAction('Open', self)
+        act.setShortcut('Ctrl+F')
+        act.triggered.connect(self.find_file)
+        self.addAction(act)
+        act = qtw.QAction('Load', self)
+        act.setShortcut('Ctrl+O')
+        act.triggered.connect(self.load_module)
+        self.addAction(act)
+        act = qtw.QAction('Save', self)
+        act.setShortcut('Ctrl+S')
+        act.triggered.connect(self.create_files)
+        self.addAction(act)
+        act = qtw.QAction('Help', self)
+        act.setShortcut('F1')
+        act.triggered.connect(self.help)
+        self.addAction(act)
+        act = qtw.QAction('Quit', self)
+        act.setShortcut('Ctrl+Q')
+        act.triggered.connect(self.exit)
+        self.addAction(act)
+
         self.setLayout(vbox)
         self.vraag_modfile.setFocus()
 
         self.show()
 
-    def zoekfile(self, *args):
+    def find_file(self, *args):
         """event handler voor 'zoek in directory'"""
         oupad = self.vraag_modfile.currentText()
         if oupad == "":
@@ -389,6 +414,22 @@ class MainFrame(qtw.QWidget):
                     "w") as out:
                 self.loaded.print_instrument(number, out)
         qtw.QMessageBox.information(self, 'Yay', 'Done')
+
+    def help(self, *args):
+        qtw.QMessageBox.information(self, 'Keyboard Shortcuts', '\n'.join((
+            'Use Alt with the underscored letters or',
+            'Ctrl-F\tfor\tFile selection',
+            'Ctrl-O\t\tLoad indicated module',
+            'Ctrl-right\t\tMove sample to right listbox',
+            'Ctrl-left\t\tMove sample to left listbox',
+            'Ctrl-Up\t\tMove sample up in left list',
+            'Ctrl-Down\t\tMove sample down in left list',
+            'F2\t\tAssign letter(s) to sample',
+            'Del\t\tDelete dummy sample',
+            'Ctrl-S\t\tCreate transcription files',
+            'Ctrl-Q\t\tQuit the application',
+            'F1\t\tShow this screen',
+            )))
 
     def exit(self, *args):
         with open('mru_files', 'w') as _out:
