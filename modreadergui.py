@@ -117,7 +117,7 @@ class MainFrame(qtw.QWidget):
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
         quit_button = qtw.QPushButton("E&xit", self)
-        quit_button.clicked.connect(self.close)
+        quit_button.clicked.connect(self.exit)
         hbox.addWidget(quit_button)
         hbox.addStretch()
         vbox.addLayout(hbox)
@@ -348,12 +348,12 @@ class MainFrame(qtw.QWidget):
                 self.loaded.print_instrument(number, out)
         qtw.QMessageBox.information(self, 'Yay', 'Done')
 
-    def close(self, *args):
+    def exit(self, *args):
         with open('mru_files', 'w') as _out:
             for name in self._mru_items:
                 _out.write(name + '\n')
         pass # built in delay to avoid segfault
-        super().close()
+        self.close()
 
 app = qtw.QApplication(sys.argv)
 win = MainFrame()
