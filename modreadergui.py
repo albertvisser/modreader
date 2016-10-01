@@ -352,6 +352,7 @@ class MainFrame(qtw.QWidget):
         with open('mru_files', 'w') as _out:
             for name in self._mru_items:
                 _out.write(name + '\n')
+        pass # built in delay to avoid segfault
         super().close()
 
 app = qtw.QApplication(sys.argv)
