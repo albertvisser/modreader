@@ -36,6 +36,8 @@ class MainFrame(qtw.QWidget):
                         self._mru_items.add(line.strip())
         except FileNotFoundError:
             pass
+        # this should enable tabbing, but apparently it doesn't?
+        self.setFocusPolicy(core.Qt.StrongFocus)
         self.create_widgets()
 
     def create_widgets(self):
@@ -45,11 +47,11 @@ class MainFrame(qtw.QWidget):
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
         hbox.addWidget(qtw.QLabel("Select module file:", self))
-        self.vraag_modfile = qtw.QComboBox(self)
-        self.vraag_modfile.setEditable(True)
-        self.vraag_modfile.addItems([x for x  in self._mru_items])
-        self.vraag_modfile.setEditText(self.filenaam)
-        hbox.addWidget(self.vraag_modfile)
+        self.ask_modfile = qtw.QComboBox(self)
+        self.ask_modfile.setEditable(True)
+        self.ask_modfile.addItems([x for x  in self._mru_items])
+        self.ask_modfile.setEditText(self.filenaam)
+        hbox.addWidget(self.ask_modfile)
         zoek_button = qtw.QPushButton("&Browse", self)
         zoek_button.clicked.connect(self.find_file)
         hbox.addWidget(zoek_button)
@@ -73,10 +75,10 @@ class MainFrame(qtw.QWidget):
 
         col = qtw.QVBoxLayout()
         col.addStretch()
-        move_button = qtw.QPushButton('->', self)
+        move_button = qtw.QPushButton('→', self)
         move_button.clicked.connect(self.move_to_right)
         col.addWidget(move_button)
-        back_button = qtw.QPushButton('<-', self)
+        back_button = qtw.QPushButton('←', self)
         back_button.clicked.connect(self.move_to_left)
         col.addWidget(back_button)
         col.addStretch()
@@ -147,6 +149,10 @@ class MainFrame(qtw.QWidget):
         hbox.addStretch()
         vbox.addLayout(hbox)
 
+        act = qtw.QAction('Enter filename', self)
+        act.setShortcut('Ctrl+Home')
+        act.triggered.connect(self.activate_filename)
+        self.addAction(act)
         act = qtw.QAction('Open', self)
         act.setShortcut('Ctrl+F')
         act.triggered.connect(self.find_file)
@@ -154,6 +160,14 @@ class MainFrame(qtw.QWidget):
         act = qtw.QAction('Load', self)
         act.setShortcut('Ctrl+O')
         act.triggered.connect(self.load_module)
+        self.addAction(act)
+        act = qtw.QAction('Left-activate', self)
+        act.setShortcut('Ctrl+L')
+        act.triggered.connect(self.activate_left)
+        self.addAction(act)
+        act = qtw.QAction('Right-activate', self)
+        act.setShortcut('Ctrl+R')
+        act.triggered.connect(self.activate_right)
         self.addAction(act)
         act = qtw.QAction('Save', self)
         act.setShortcut('Ctrl+S')
@@ -169,31 +183,30 @@ class MainFrame(qtw.QWidget):
         self.addAction(act)
 
         self.setLayout(vbox)
-        self.vraag_modfile.setFocus()
+        self.ask_modfile.setFocus()
 
         self.show()
 
+    def activate_filename(self, *args):
+        self.ask_modfile.setFocus(True)
+
     def find_file(self, *args):
         """event handler voor 'zoek in directory'"""
-        oupad = self.vraag_modfile.currentText()
+        oupad = self.ask_modfile.currentText()
         if oupad == "":
              oupad = '/home/albert/magiokis/data/mod'
-        ## if oupad.endswith('.mod'):
-            ## dir_, name = os.path.split(oupad)
-        ## else:
-            ## dir_, name = oupad, ''
         name, pattern = qtw.QFileDialog.getOpenFileName(self, "Open File", oupad,
             "Mod files (*.mod)")
         if name != "" and name != oupad:
-            self.vraag_modfile.setEditText(name)
+            self.ask_modfile.setEditText(name)
             if name not in self._mru_items:
                 self._mru_items.add(name)
-                self.vraag_modfile.addItem(name)
+                self.ask_modfile.addItem(name)
             self.list_samples.clear()
             self.mark_samples.clear()
 
     def load_module(self, *args):
-        pad = self.vraag_modfile.currentText()
+        pad = self.ask_modfile.currentText()
         if not pad:
             qtw.QMessageBox.information(self, 'Oops', 'You need to provide a '
                 'filename')
@@ -207,6 +220,24 @@ class MainFrame(qtw.QWidget):
         ## print('initial:')
         ## print(self.nondrums)
         ## print(self.drums)
+
+    def activate_left(self, *args):
+        item = self.list_samples.currentItem()
+        if not item:
+            item = self.list_samples.item(0)
+        if item:
+            self.list_samples.setCurrentItem(item)
+            item.setSelected(True)
+        self.list_samples.setFocus(True)
+
+    def activate_right(self, *args):
+        item = self.mark_samples.currentItem()
+        if not item:
+            item = self.mark_samples.item(0)
+        if item:
+            self.mark_samples.setCurrentItem(item)
+            item.setSelected(True)
+        self.mark_samples.setFocus(True)
 
     def move_to_right(self, *args):
         """overbrengen naar rechterlijst zodat alleen de niet-drums overblijven
@@ -223,8 +254,11 @@ class MainFrame(qtw.QWidget):
             templist.insert(0, it)
         for item in templist:
             self.mark_samples.addItem(item)
+            self.mark_samples.setCurrentItem(item)
+            item.setSelected(True)
             ## self.drums.append(item)
             ## self.nondrums.remove(item)
+        self.mark_samples.setFocus(True)
         ## print('after move to right:')
         ## print(self.nondrums)
         ## print(self.drums)
@@ -244,8 +278,11 @@ class MainFrame(qtw.QWidget):
             templist.insert(0, it)
         for item in selected:
             self.list_samples.addItem(item)
+            self.list_samples.setCurrentItem(item)
+            item.setSelected(True)
             ## self.nondrums.append(item)
             ## self.drums.remove(item)
+        self.list_samples.setFocus(True)
         ## print('after move to left:')
         ## print(self.nondrums)
         ## print(self.drums)
@@ -418,9 +455,12 @@ class MainFrame(qtw.QWidget):
     def help(self, *args):
         qtw.QMessageBox.information(self, 'Keyboard Shortcuts', '\n'.join((
             'Use Alt with the underscored letters or',
+            'Ctrl-Home\tto\tActivate filename field',
             'Ctrl-F\tfor\tFile selection',
             'Ctrl-O\t\tLoad indicated module',
+            'Ctrl-L\t\tActivate left listbox',
             'Ctrl-right\t\tMove sample to right listbox',
+            'Ctrl-R\t\tActivate right listbox',
             'Ctrl-left\t\tMove sample to left listbox',
             'Ctrl-Up\t\tMove sample up in left list',
             'Ctrl-Down\t\tMove sample down in left list',
