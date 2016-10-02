@@ -29,6 +29,8 @@ class MainFrame(qtw.QWidget):
         self.drums = []
         self.nondrums = []
         self.filenaam = ''
+        self.title = "ModReaderGui"
+        self.setWindowTitle(self.title)
         try:
             with open('mru_files') as _in:
                 for line in _in:
@@ -39,6 +41,7 @@ class MainFrame(qtw.QWidget):
         # this should enable tabbing, but apparently it doesn't?
         self.setFocusPolicy(core.Qt.StrongFocus)
         self.create_widgets()
+        self.create_actions()
 
     def create_widgets(self):
 
@@ -84,15 +87,6 @@ class MainFrame(qtw.QWidget):
         col.addStretch()
         hbox.addLayout(col)
 
-        act = qtw.QAction('Move to right', self)
-        act.setShortcut('Ctrl+Right')
-        act.triggered.connect(self.move_to_right)
-        self.addAction(act)
-        act = qtw.QAction('Move to left', self)
-        act.setShortcut('Ctrl+Left')
-        act.triggered.connect(self.move_to_left)
-        self.addAction(act)
-
         self.mark_samples = qtw.QListWidget(self)
         self.mark_samples.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
         hbox.addWidget(self.mark_samples)
@@ -116,23 +110,6 @@ class MainFrame(qtw.QWidget):
         hbox.addLayout(col)
         vbox.addLayout(hbox)
 
-        act = qtw.QAction('Move Up', self)
-        act.setShortcut('Ctrl+Up')
-        act.triggered.connect(self.move_up)
-        self.addAction(act)
-        act = qtw.QAction('Move Down', self)
-        act.setShortcut('Ctrl+Down')
-        act.triggered.connect(self.move_down)
-        self.addAction(act)
-        act = qtw.QAction('Assign/Edit', self)
-        act.setShortcut('F2')
-        act.triggered.connect(self.assign)
-        self.addAction(act)
-        act = qtw.QAction('Remove', self)
-        act.setShortcut('Del')
-        act.triggered.connect(self.remove)
-        self.addAction(act)
-
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
         create_button = qtw.QPushButton("&Create transcription files", self)
@@ -149,43 +126,35 @@ class MainFrame(qtw.QWidget):
         hbox.addStretch()
         vbox.addLayout(hbox)
 
-        act = qtw.QAction('Enter filename', self)
-        act.setShortcut('Ctrl+Home')
-        act.triggered.connect(self.activate_filename)
-        self.addAction(act)
-        act = qtw.QAction('Open', self)
-        act.setShortcut('Ctrl+F')
-        act.triggered.connect(self.find_file)
-        self.addAction(act)
-        act = qtw.QAction('Load', self)
-        act.setShortcut('Ctrl+O')
-        act.triggered.connect(self.load_module)
-        self.addAction(act)
-        act = qtw.QAction('Left-activate', self)
-        act.setShortcut('Ctrl+L')
-        act.triggered.connect(self.activate_left)
-        self.addAction(act)
-        act = qtw.QAction('Right-activate', self)
-        act.setShortcut('Ctrl+R')
-        act.triggered.connect(self.activate_right)
-        self.addAction(act)
-        act = qtw.QAction('Save', self)
-        act.setShortcut('Ctrl+S')
-        act.triggered.connect(self.create_files)
-        self.addAction(act)
-        act = qtw.QAction('Help', self)
-        act.setShortcut('F1')
-        act.triggered.connect(self.help)
-        self.addAction(act)
-        act = qtw.QAction('Quit', self)
-        act.setShortcut('Ctrl+Q')
-        act.triggered.connect(self.exit)
-        self.addAction(act)
-
         self.setLayout(vbox)
         self.ask_modfile.setFocus()
 
         self.show()
+
+    def create_actions(self):
+        self.helpitems = ['Use Alt with the underscored letters or']
+        self.actionlist = (
+            ('Activate filename field', 'Ctrl+Home', self.activate_filename),
+            ('Select a file', 'Ctrl+F', self.find_file),
+            ('Load indicated module', 'Ctrl+O', self.load_module),
+            ('Activate left listbox', 'Ctrl+L', self.activate_left),
+            ('Move sample to right listbox', 'Ctrl+Right', self.move_to_right),
+            ('Activate right listbox', 'Ctrl+R', self.activate_right),
+            ('Move sample to left listbox', 'Ctrl+Left', self.move_to_left),
+            ('Move sample up in left list', 'Ctrl+Up', self.move_up),
+            ('Move sample down in left list', 'Ctrl+Down', self.move_down),
+            ('Assign letter(s) to sample', 'F2', self.assign),
+            ('Delete dummy sample', 'Del', self.remove),
+            ('Create transcription files', 'Ctrl+S', self.create_files),
+            ('Quit the application', 'Ctrl+Q', self.exit),
+            ('Show this screen', 'F1', self.help),
+            )
+        for name, shortcut, callback in self.actionlist:
+            act = qtw.QAction(name, self)
+            act.setShortcut(shortcut)
+            act.triggered.connect(callback)
+            self.addAction(act)
+            self.helpitems.append('{}\t\t{}'.format(shortcut, name))
 
     def activate_filename(self, *args):
         self.ask_modfile.setFocus(True)
@@ -208,7 +177,7 @@ class MainFrame(qtw.QWidget):
     def load_module(self, *args):
         pad = self.ask_modfile.currentText()
         if not pad:
-            qtw.QMessageBox.information(self, 'Oops', 'You need to provide a '
+            qtw.QMessageBox.information(self, self.title, 'You need to provide a '
                 'filename')
             return
         self.loaded = modreader.ModFile(pad)
@@ -217,9 +186,6 @@ class MainFrame(qtw.QWidget):
         self.list_samples.addItems(self.nondrums)
         self.mark_samples.clear()
         self.drums = []
-        ## print('initial:')
-        ## print(self.nondrums)
-        ## print(self.drums)
 
     def activate_left(self, *args):
         item = self.list_samples.currentItem()
@@ -239,13 +205,28 @@ class MainFrame(qtw.QWidget):
             item.setSelected(True)
         self.mark_samples.setFocus(True)
 
+    def check_selected(self, list, only_one=False, for_now=False):
+        selected = list.selectedItems()
+        msg = ''
+        if len(selected) == 0:
+            if only_one and not for_now:
+                msg = 'Please select an instrument'
+            else:
+                msg = 'Please select one or more instruments'
+        if not msg and len(selected) > 1 and only_one:
+            msg = 'One at a time, please'
+            if for_now:
+                msg += ' (for now)'
+        if msg:
+            qtw.QMessageBox.information(self, self.title, msg)
+            return
+        return selected
+
     def move_to_right(self, *args):
         """overbrengen naar rechterlijst zodat alleen de niet-drums overblijven
         """
-        selected = self.list_samples.selectedItems()
-        if len(selected) == 0:
-            qtw.QMessageBox.information(self, 'Oops', 'Please select one or more '
-                'instruments')
+        selected = self.check_selected(self.list_samples)
+        if not selected:
             return
         templist = []
         for item in reversed(selected):
@@ -256,20 +237,13 @@ class MainFrame(qtw.QWidget):
             self.mark_samples.addItem(item)
             self.mark_samples.setCurrentItem(item)
             item.setSelected(True)
-            ## self.drums.append(item)
-            ## self.nondrums.remove(item)
         self.mark_samples.setFocus(True)
-        ## print('after move to right:')
-        ## print(self.nondrums)
-        ## print(self.drums)
 
     def move_to_left(self, *args):
         """overbrengen naar linkerlijst (om alleen drumsamples over te houden)
         """
-        selected = self.mark_samples.selectedItems()
-        if len(selected) == 0:
-            qtw.QMessageBox.information(self, 'Oops', 'Please select one or more '
-                'instruments')
+        selected = self.check_selected(self.mark_samples)
+        if not selected:
             return
         templist = []
         for item in reversed(selected):
@@ -280,79 +254,48 @@ class MainFrame(qtw.QWidget):
             self.list_samples.addItem(item)
             self.list_samples.setCurrentItem(item)
             item.setSelected(True)
-            ## self.nondrums.append(item)
-            ## self.drums.remove(item)
         self.list_samples.setFocus(True)
-        ## print('after move to left:')
-        ## print(self.nondrums)
-        ## print(self.drums)
 
     def move_up(self, *args):
         """entry verplaatsen voor realiseren juiste volgorde
         """
-        selected = self.mark_samples.selectedItems()
-        msg = ''
-        if len(selected) == 0:
-            msg = 'Please select one or more instruments'
-        elif len(selected) > 1:
-            msg = 'One at a time, please (for now)'
-        if msg:
-            qtw.QMessageBox.information(self, 'Oops', msg)
+        selected = self.check_selected(self.mark_samples, only_one=True,
+            for_now=True)
+        if not selected:
             return
-        ## print('\ninitial:', self.drums)
         selindx = self.mark_samples.row(selected[0])
         if selindx > 0:
             item = self.mark_samples.takeItem(selindx)
-            ## item = self.drums.pop(selindx)
-            ## self.drums.insert(selindx - 1, item)
             self.mark_samples.insertItem(selindx - 1, item)
             item.setSelected(True)
             self.mark_samples.scrollToItem(item)
-        ## print('after move down:', self.drums)
 
     def move_down(self, *args):
         """entry verplaatsen voor realiseren juiste volgorde
         """
-        selected = self.mark_samples.selectedItems()
-        msg = ''
-        if len(selected) == 0:
-            msg = 'Please select one or more instruments'
-        elif len(selected) > 1:
-            msg = 'One at a time, please (for now)'
-        if msg:
-            qtw.QMessageBox.information(self, 'Oops', msg)
+        selected = self.check_selected(self.mark_samples, only_one=True,
+            for_now=True)
+        if not selected:
             return
-        ## print('\ninitial:', self.drums)
         selindx = self.mark_samples.row(selected[0])
-        ## if selindx < len(self.drums) - 1:
         if selindx < len(self.mark_samples) - 1:
             item = self.mark_samples.takeItem(selindx)
-            ## item = self.drums.pop(selindx)
-            ## self.drums.insert(selindx + 1, item)
             self.mark_samples.insertItem(selindx + 1, item)
             item.setSelected(True)
             self.mark_samples.scrollToItem(item)
-        ## print('after move down:', self.drums)
 
     def assign(self, *args):
         """letter toekennen voor in display
         """
-        selected = self.mark_samples.selectedItems()
-        msg = ''
-        if len(selected) == 0:
-            msg = 'Please select an instrument'
-        elif len(selected) > 1:
-            msg = 'One at a time, please'
-        if msg:
-            qtw.QMessageBox.information(self, 'Oops', msg)
+        selected = self.check_selected(self.mark_samples, only_one=True)
+        if not selected:
             return
-        ## print('\ninitial:', self.drums)
         try:
             inst, data = selected[0].text().split()
         except ValueError:
             inst, data = selected[0].text(), ''
-        text, ok = qtw.QInputDialog.getText(self, 'ModReaderGui',
-            'Enter letter(s) to be printed for "{}"'.format(inst), text=data[1:-1])
+        text, ok = qtw.QInputDialog.getText(self, self.title, 'Enter letter(s) '
+            'to be printed for "{}"'.format(inst), text=data[1:-1])
         if ok:
             if text:
                 inst += " ({})".format(text)
@@ -360,63 +303,57 @@ class MainFrame(qtw.QWidget):
 
     def remove(self, *args):
         selected = self.mark_samples.selectedItems()
-        msg = ''
-        if len(selected) == 0:
-            msg = 'Please select one or more instruments'
-        ## elif len(selected) > 1:
-            ## msg = 'One at a time, please (for now)'
-        else:
-            for item in selected:
-                selindex = self.mark_samples.row(item)
-                if not item.text().startswith('dummy_sample ('):
-                    msg = 'You can only remove dummy samples'
-                    break
-        if msg:
-            qtw.QMessageBox.information(self, 'Oops', msg)
-            return
+        for item in selected:
+            selindex = self.mark_samples.row(item)
+            if not item.text().startswith('dummy_sample ('):
+                qtw.QMessageBox.information(self, self.title, 'You can only remove '
+                    'dummy samples')
+                return
         for item in selected:
             selindx = self.mark_samples.row(item)
             self.mark_samples.takeItem(selindx)
 
     def create_files(self):
+        msg = ''
         if not self.loaded:
-            qtw.QMessageBox.information(self, 'Oops', 'Please load a module first')
-            return
+            msg = 'Please load a module first'
 
-        # get all letters assigned to sample
-        samples, letters = [], []
-        all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
-            self.mark_samples))]
-        try:
-            for x, y in [z.rsplit(None, 1) for z in all_item_texts]:
-                samples.append(x)
-                letters.append(y[1:-1])
-        except ValueError:
-            qtw.QMessageBox.information(self, 'Oops', 'Please assign letters '
-                'to *all* drumtracks')
-            return
+        if not msg:
+            # get all letters assigned to sample
+            samples, letters = [], []
+            all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
+                self.mark_samples))]
+            try:
+                for x, y in [z.rsplit(None, 1) for z in all_item_texts]:
+                    samples.append(x)
+                    letters.append(y[1:-1])
+            except ValueError:
+                msg = 'Please assign letters to *all* drumtracks'
 
-        drums = []
-        nondrums = []
-        printseq = "".join([x for x in letters if len(x) == 1])
-        if len(printseq) != len(set(printseq)):
-            qtw.QMessageBox.information(self, 'Oops', 'Please correct multiple '
-                'assignments to the same letter')
-            return
+        if not msg:
+            drums = []
+            nondrums = []
+            printseq = "".join([x for x in letters if len(x) == 1])
+            if len(printseq) != len(set(printseq)):
+                msg = 'Please correct multiple assignments to the same letter'
 
-        ready = True
-        for x in set(''.join([x for x in letters])):
-            if x not in printseq:
-                new = qtw.QListWidgetItem('dummy_sample ({})'.format(x))
-                self.mark_samples.addItem(new)
-                self.mark_samples.scrollToItem(new)
-                self.mark_samples.currentItem().setSelected(False)
-                new.setSelected(True)
-                self.remove_button.setEnabled(True)
-                ready = False
-        if not ready:
-            qtw.QMessageBox.information(self, 'Oops', 'Please relocate the dummy '
-                'samples so their letters are in the right position')
+        if not msg:
+            ready = True
+            for x in set(''.join([x for x in letters])):
+                if x not in printseq:
+                    new = qtw.QListWidgetItem('dummy_sample ({})'.format(x))
+                    self.mark_samples.addItem(new)
+                    self.mark_samples.scrollToItem(new)
+                    self.mark_samples.currentItem().setSelected(False)
+                    new.setSelected(True)
+                    self.remove_button.setEnabled(True)
+                    ready = False
+            if not ready:
+                msg = ' '.join(('Please relocate the dummy samples',
+                    'so their letters are in the right position'))
+
+        if msg:
+            qtw.QMessageBox.information(self, self.title, msg)
             return
 
         samples_2 = [self.list_samples.item(x).text().split()[0] for x in range(
@@ -429,7 +366,7 @@ class MainFrame(qtw.QWidget):
                 ix = samples_2.index(data[0])
                 nondrums.append((num + 1, data[0]))
 
-        pad = self.vraag_modfile.currentText()
+        pad = self.ask_modfile.currentText()
         newdir = os.path.splitext(pad)[0]
         try:
             os.mkdir(newdir)
@@ -450,26 +387,11 @@ class MainFrame(qtw.QWidget):
             with open(os.path.join(newdir, '{}-{}'.format(datetimestamp, name)),
                     "w") as out:
                 self.loaded.print_instrument(number, out)
-        qtw.QMessageBox.information(self, 'Yay', 'Done')
+        qtw.QMessageBox.information(self, self.title, 'Done')
 
     def help(self, *args):
-        qtw.QMessageBox.information(self, 'Keyboard Shortcuts', '\n'.join((
-            'Use Alt with the underscored letters or',
-            'Ctrl-Home\tto\tActivate filename field',
-            'Ctrl-F\tfor\tFile selection',
-            'Ctrl-O\t\tLoad indicated module',
-            'Ctrl-L\t\tActivate left listbox',
-            'Ctrl-right\t\tMove sample to right listbox',
-            'Ctrl-R\t\tActivate right listbox',
-            'Ctrl-left\t\tMove sample to left listbox',
-            'Ctrl-Up\t\tMove sample up in left list',
-            'Ctrl-Down\t\tMove sample down in left list',
-            'F2\t\tAssign letter(s) to sample',
-            'Del\t\tDelete dummy sample',
-            'Ctrl-S\t\tCreate transcription files',
-            'Ctrl-Q\t\tQuit the application',
-            'F1\t\tShow this screen',
-            )))
+        qtw.QMessageBox.information(self, 'Keyboard Shortcuts',
+            '\n'.join(self.helpitems))
 
     def exit(self, *args):
         with open('mru_files', 'w') as _out:
