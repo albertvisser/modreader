@@ -95,7 +95,7 @@ class MidiFile:
         if self.instruments[trackno][1] == 10:
             is_drumtrack, empty, factor, per_line = True, '.', 4, 64
         else:
-            is_drumtrack, empty, factor, per_line = False, '...', 2, 32
+            is_drumtrack, empty, factor, per_line = False, '...', 4, 32
         duration = self.resolution // factor
         lines = collections.defaultdict(list)
         for moment, pitch in self.tracks[trackno]:
@@ -119,7 +119,8 @@ class MidiFile:
                         lines[pitch].pop(0)
                     else:
                         printstr.append(empty)
-                print(' '.join(printstr), file=stream)
+                sep = '' if is_drumtrack else ' '
+                print(sep.join(printstr), file=stream)
             print('', file=stream)
 
 
