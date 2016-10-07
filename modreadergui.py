@@ -19,12 +19,13 @@ import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as gui
 import PyQt5.QtCore as core
 import modreader
+import midreader
 
 class MainFrame(qtw.QWidget):
 
     def __init__(self, parent=None):
         super().__init__()
-        self._mru_items = set()
+        self._mru_items = []
         self.loaded = None
         self.drums = []
         self.nondrums = []
@@ -35,7 +36,7 @@ class MainFrame(qtw.QWidget):
             with open('mru_files') as _in:
                 for line in _in:
                     if line.strip():
-                        self._mru_items.add(line.strip())
+                        self._mru_items.append(line.strip())
         except FileNotFoundError:
             pass
         # this should enable tabbing, but apparently it doesn't?
@@ -163,13 +164,15 @@ class MainFrame(qtw.QWidget):
         """event handler voor 'zoek in directory'"""
         oupad = self.ask_modfile.currentText()
         if oupad == "":
-             oupad = '/home/albert/magiokis/data/mod'
+             oupad = '/home/albert/magiokis/data'
         name, pattern = qtw.QFileDialog.getOpenFileName(self, "Open File", oupad,
-            "Mod files (*.mod)")
+            "Known files (*.mod *.mid)")
         if name != "" and name != oupad:
             self.ask_modfile.setEditText(name)
             if name not in self._mru_items:
-                self._mru_items.add(name)
+                self._mru_items.append(name)
+                if len(self._mru_items) > 10:
+                    self._mru_items.pop(0)
                 self.ask_modfile.addItem(name)
             self.list_samples.clear()
             self.mark_samples.clear()
@@ -180,12 +183,22 @@ class MainFrame(qtw.QWidget):
             qtw.QMessageBox.information(self, self.title, 'You need to provide a '
                 'filename')
             return
-        self.loaded = modreader.ModFile(pad)
-        self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
+        test = os.path.splitext(pad)[1]
+        if test == '.mod':
+            self.loaded = modreader.ModFile(pad)
+            self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
+            self.drums = []
+        elif test == '.mid':
+            self.loaded = midreader.MidiFile(pad)
+            self.nondrums = [x[0] for x in self.loaded.instruments.values()
+                if x[1] != 10]
+            self.drums = [x[0] for x in self.loaded.instruments.values()
+                if x[1] == 10]
         self.list_samples.clear()
         self.list_samples.addItems(self.nondrums)
         self.mark_samples.clear()
-        self.drums = []
+        if self.drums:
+            self.mark_samples.addItems(self.drums)
 
     def activate_left(self, *args):
         item = self.list_samples.currentItem()
@@ -317,10 +330,46 @@ class MainFrame(qtw.QWidget):
         msg = ''
         if not self.loaded:
             msg = 'Please load a module first'
+        elif self.loaded.filename.endswith('.mod'):
+            msg = self.extrachecks_modfile()
 
+        if msg:
+            qtw.QMessageBox.information(self, self.title, msg)
+            return
+
+        pad = self.ask_modfile.currentText()
+        self.newdir = os.path.splitext(pad)[0]
+        try:
+            os.mkdir(self.newdir)
+        except FileExistsError:
+            pass
+        self.dts = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
+
+        if self.loaded.filename.endswith('.mod'):
+            self.process_modfile()
+        elif self.loaded.filename.endswith('.mid'):
+            self.process_midifile()
+        qtw.QMessageBox.information(self, self.title, 'Done')
+
+
+    def help(self, *args):
+        qtw.QMessageBox.information(self, 'Keyboard Shortcuts',
+            '\n'.join(self.helpitems))
+
+
+    def exit(self, *args):
+        with open('mru_files', 'w') as _out:
+            for name in self._mru_items:
+                _out.write(name + '\n')
+        pass # built in delay to avoid segfault
+        self.close()
+
+
+    def extrachecks_modfile(self):
+        msg = ''
+        samples, letters = [], []
         if not msg:
             # get all letters assigned to sample
-            samples, letters = [], []
             all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
                 self.mark_samples))]
             try:
@@ -331,8 +380,6 @@ class MainFrame(qtw.QWidget):
                 msg = 'Please assign letters to *all* drumtracks'
 
         if not msg:
-            drums = []
-            nondrums = []
             printseq = "".join([x for x in letters if len(x) == 1])
             if len(printseq) != len(set(printseq)):
                 msg = 'Please correct multiple assignments to the same letter'
@@ -352,12 +399,17 @@ class MainFrame(qtw.QWidget):
                 msg = ' '.join(('Please relocate the dummy samples',
                     'so their letters are in the right position'))
 
-        if msg:
-            qtw.QMessageBox.information(self, self.title, msg)
-            return
+        self._assigned = samples, letters, printseq
+        return msg
 
+
+    def process_modfile(self):
+        drums = []
+        nondrums = []
+        samples, letters, printseq = self._assigned
         samples_2 = [self.list_samples.item(x).text().split()[0] for x in range(
             len(self.list_samples))]
+
         for num, data in self.loaded.samples.items():
             if data[0] in samples:
                 ix = samples.index(data[0])
@@ -366,39 +418,29 @@ class MainFrame(qtw.QWidget):
                 ix = samples_2.index(data[0])
                 nondrums.append((num + 1, data[0]))
 
-        pad = self.ask_modfile.currentText()
-        newdir = os.path.splitext(pad)[0]
-        try:
-            os.mkdir(newdir)
-        except FileExistsError:
-            pass
-        datetimestamp = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
-        with open(os.path.join(newdir, '{}-general'.format(datetimestamp)),
+        with open(os.path.join(self.newdir, '{}-general'.format(self.dts)),
                 "w") as out:
             if drums:
                 self.loaded.print_module_details(out, drums)
             else:
                 self.loaded.print_module_details(out)
         if drums:
-            with open(os.path.join(newdir, '{}-drums'.format(datetimestamp)),
+            with open(os.path.join(self.newdir, '{}-drums'.format(self.dts)),
                     "w") as out:
                 self.loaded.print_drums(drums, printseq, out)
         for number, name in nondrums:
-            with open(os.path.join(newdir, '{}-{}'.format(datetimestamp, name)),
+            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, name)),
                     "w") as out:
                 self.loaded.print_instrument(number, out)
-        qtw.QMessageBox.information(self, self.title, 'Done')
 
-    def help(self, *args):
-        qtw.QMessageBox.information(self, 'Keyboard Shortcuts',
-            '\n'.join(self.helpitems))
-
-    def exit(self, *args):
-        with open('mru_files', 'w') as _out:
-            for name in self._mru_items:
-                _out.write(name + '\n')
-        pass # built in delay to avoid segfault
-        self.close()
+    def process_midifile(self):
+        with open(os.path.join(self.newdir, '{}-instruments'.format(self.dts))
+                , 'w') as _out:
+            self.loaded.print_general_data(_out)
+        for trackno, data in self.loaded.instruments.items():
+            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, data[0])),
+                    'w') as _out:
+                self.loaded.print_instrument(trackno, _out)
 
 app = qtw.QApplication(sys.argv)
 win = MainFrame()
