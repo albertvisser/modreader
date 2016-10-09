@@ -92,7 +92,7 @@ class ModFile:
             elif self.modtype in ('8CHN', 'FLT8'):
                 channelcount = 8
 
-            for x in range(self.highpatt):
+            for x in range(self.highpatt + 1):
                 pattern = []
                 for y in range(64):
                     track = []
@@ -155,7 +155,7 @@ class ModFile:
                         if effect == 13:
                             last_event = True
                 if last_event:
-                    maxlen[pattnum] = ix
+                    maxlen[pattnum] = ix + 1
                     break
         for pattnum, pattern in all_events.items():
             print('pattern', pattnum, file=_out)
@@ -222,7 +222,7 @@ class ModFile:
                     if effect == 13:
                         last_event = True
                 if last_event:
-                    maxlen[pattnum] = ix
+                    maxlen[pattnum] = ix + 1
                     break
             if not notes:
                 continue
