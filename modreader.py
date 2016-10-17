@@ -4,7 +4,9 @@ de patterns uit te schrijven
 """
 import collections
 import pprint
+import shared
 
+# de noten kloppen, maar de octaven worden in MilkyTracker 2 hoger weergegeven
 noteval = dict(zip([
     int(x) for x in """\
 1712 1616 1524 1440 1356 1280 1208 1140 1076 1016  960  906
@@ -20,7 +22,6 @@ noteval = dict(zip([
  C-3  C#3  D-3  D#3  E-3  F-3  F#3  G-3  G#3  A-3  A#3  B-3
  C-4  C#4  D-4  D#4  E-4  F-4  F#4  G-4  G#4  A-4  A#4  B-4
 """.split()]))
-notes = ['C ', 'C#', 'D ', 'D#', 'E ', 'F ', 'F#', 'G ', 'G#', 'A ', 'A#', 'B ']
 
 def getstring(data):
     result = ''
@@ -49,20 +50,15 @@ def get_playseq(data, length):
     return result, highpatt
 
 def get_notedata(data):
-    sampnum = data[0] & 240
+    sampnum = data[0] & 0xF0
     sampnum += data[2] >> 4
-    period = data[0] & 15
+    period = data[0] & 0x0F
     period *= 256
     period += data[1]
     note = noteval[period] if period else 0
-    effectnum = data[2] & 15
+    effectnum = data[2] & 0x0F
     effectparm = data[3]
     return sampnum, note, effectnum, effectparm
-
-def getnotenum(x):
-    octave = 12 * int(x[2])
-    seq = notes.index(x[:2])
-    return octave + seq
 
 class ModFile:
 
@@ -101,7 +97,7 @@ class ModFile:
                     pattern.append(track)
                 self.patterns[x] = pattern
 
-    def print_module_details(self, _out, sample_list=None):
+    def print_general_data(self, _out, sample_list=None):
         printable = "Details of module {}".format(self.filename)
         data = [printable, "=" * len(printable), '',
             'description: ' + self.name.rstrip(chr(0)), '']
@@ -232,7 +228,7 @@ class ModFile:
                 pattlen = maxlen[pattnum]
             except KeyError:
                 pattlen = 64
-            for notestr in reversed(sorted(notes[pattnum], key=getnotenum)):
+            for notestr in reversed(sorted(notes[pattnum], key=shared.getnotenum)):
                 print('           ', end='', file=_out)
                 ## print(notestr, end=': ', file=_out)
                 for note, events in pattern.items():

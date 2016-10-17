@@ -4,40 +4,7 @@ import subprocess
 import csv
 import collections
 import pprint
-NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-GM_DRUMS = [
-    ('b', 'Acoustic Bass Drum'), ('b', 'Bass Drum 1'), ('?', 'Side Stick'),
-    ('s', 'Acoustic Snare'), ('?', 'Hand Clap'), ('s', 'Electric Snare'),
-    ('f', 'Low Floor Tom'), ('h', 'Closed Hi Hat'), ('f', 'High Floor Tom'),
-    ('?', 'Pedal Hi-Hat'), ('?', 'Low Tom'), ('o', 'Open Hi-Hat'),
-    ('g', 'Low-Mid Tom'), ('?', 'Hi Mid Tom'), ('c', 'Crash Cymbal 1'),
-    ('d', 'High Tom'), ('r', 'Ride Cymbal 1'), ('C', 'Chinese Cymbal'),
-    ('?', 'Ride Bell'), ('?', 'Tambourine'), ('S', 'Splash Cymbal'),
-    ('?', 'Cowbell'), ('c', 'Crash Cymbal 2'), ('?', 'Vibraslap'),
-    ('r', 'Ride Cymbal 2'), ('?', 'Hi Bongo'), ('?', 'Low Bongo'),
-    ('?', 'Mute Hi Conga'), ('?', 'Open Hi Conga'), ('?', 'Low Conga'),
-    ('?', 'High Timbale'), ('?', 'Low Timbale'), ('?', 'High Agogo'),
-    ('?', 'Low Agogo'), ('?', 'Cabasa'), ('?', 'Maracas'),
-    ('?', 'Short Whistle'), ('?', 'Long Whistle '), ('?', 'Short Guiro'),
-    ('?', 'Long Guiro'), ('?', 'Claves'), ('?', 'Hi Wood Block'),
-    ('?', 'Low Wood Block'), ('?', 'Mute Cuica'), ('?', 'Open Cuica'),
-    ('?', 'Mute Triangle'), ('?', 'Open Triangle'),
-    ]
-
-def get_note_name(inp):
-    """translate note number to note name
-    """
-    octave, noteval = divmod(inp, 12)
-    return NOTE_NAMES[noteval].ljust(2) + str(octave)
-
-def get_inst_name(inp):
-    """translate note number to drum instrument name
-    assumes standard drumkit mapping
-    """
-    try:
-        return GM_DRUMS[inp - 35][0]
-    except IndexError:
-        return ' '
+import shared
 
 class MidiFile:
 
@@ -76,6 +43,8 @@ class MidiFile:
 
 
     def print_general_data(self, stream=sys.stdout):
+        printable = "Details of module {}".format(self.filename)
+        data = [printable, "=" * len(printable), '']
         for x, y in self.instruments.items():
             print('{:>2} {} (chn. {})'.format(x, y[0], y[1]), file=stream)
         if self.weirdness: print('', file=stream)
@@ -101,14 +70,18 @@ class MidiFile:
         for moment, pitch in self.tracks[trackno]:
             timing = moment // duration
             lines[pitch].append(timing)
+        unlettered = set()
         for moment in range(0, timing, per_line):
             for pitch in reversed(sorted(lines)):
                 if not lines[pitch]:
                     continue
                 if is_drumtrack:
-                    notestr = get_inst_name(pitch)
+                    notestr = shared.get_inst_name(pitch - 35)
+                    if notestr == '?':
+                        unlettered.add('no letter yet for `{}`'.format(
+                            shared.gm_drums[pitch - 35][1]))
                 else:
-                    notestr = get_note_name(pitch)
+                    notestr = shared.get_note_name(pitch)
                 test = lines[pitch][0]
                 if test > moment + per_line - 1:
                     continue
@@ -122,7 +95,7 @@ class MidiFile:
                 sep = '' if is_drumtrack else ' '
                 print(sep.join(printstr), file=stream)
             print('', file=stream)
-
+        for x in unlettered: print(x, file=stream)
 
 def main():
     filename = '/home/albert/magiokis/data/mid/alleen_al.mid'

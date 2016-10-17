@@ -47,4 +47,20 @@ and a file containing some general data, such as the sequence of patterns.
 I added a date/time stamp to the names so that the process can be repeated without
 overwriting existing files.
 
+Depending on the file extension, appropriate parsing and transcription routines
+will be called.
+At the moment the following file types are recognized:
+
+- `.med`: OctaMed MMD0/MMD1 module format
+- `.mod`: (Amiga) SoundTracker module format
+- `.mid`: MIDI format
+- `.mmp`: LMMS project format
+
+The latter two file types have possibilities to include a separate drum track
+(in which all the drum instruments have been put together). If this is the case
+the parsing routine will recognize this so that the instruments are
+presented in the right way.
+
 Dependencies: Python (3), PyQt5 for the most advanced version of the tool.
+If available, lxml is used for the xml parsing in mmpreader.
+

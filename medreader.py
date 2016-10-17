@@ -1,21 +1,13 @@
 import struct
 import collections
-
-NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+import shared
 
 def get_note_name(inp):
     """translate note number to note name
     """
     if inp == 0:
         return '...'
-    inp += 1
-    octave, noteval = divmod(inp, 12)
-    return NOTE_NAMES[noteval].ljust(2) + str(octave)
-
-def getnotenum(x):
-    octave = 12 * int(x[2])
-    seq = notes.index(x[:2])
-    return octave + seq
+    return shared.get_note_name(inp - 1)
 
 def mmd0_decode(data):
     """
@@ -92,6 +84,11 @@ class MedModule:
             for i in range(blockcount):
                 blockstart_list.append(read_pointer(_med))
 
+            _med.seek(instheader_start)
+            samplestart_list = []
+            for i in range(self.sample_count):
+                samplestart_list.append(read_pointer(_med))
+
             _med.seek(expansion_start)
             data = struct.unpack('>LLHHLLLHH7L7B', _med.read(63))
             instrext_start, instrext_count, instrext_len = data[1:4]
@@ -113,8 +110,10 @@ class MedModule:
             self.pattern_lengths = []
             self.pattern_data = []
             self.pattern_desc = {}
-            for i in range(blockcount):
-                _med.seek(blockstart_list[i])
+            ## for i in range(blockcount):
+            for address in blockstart_list:
+                ## _med.seek(blockstart_list[i])
+                _med.seek(address)
                 this_pattern = []
                 if self.modtype == 'MMD0':
                     tracks, lines = struct.unpack('BB', _med.read(2))
@@ -155,7 +154,7 @@ class MedModule:
         print('number of patterns == len of pattern data list?', end=' ')
         print(self.pattern_count == len(self.pattern_data))
 
-    def print_module_details(self, _out, sample_list=None):
+    def print_general_data(self, _out, sample_list=None):
         printable = "Details of module {}".format(self.filename)
         data = [printable, "=" * len(printable), '',
             'description: ' + self.songdesc, '']
@@ -202,7 +201,7 @@ class MedModule:
         all_events = collections.defaultdict(lambda: collections.defaultdict(list))
         maxlen = {}
         for pattnum, pattern in enumerate(self.pattern_data):
-            if pattnum == 0: continue
+            if len(pattern) == 0: continue
             last_event = False
             for ix, track in enumerate(pattern):
                 for note, samp in track:
@@ -259,8 +258,10 @@ class MedModule:
 
 if __name__ == "__main__":
     test = MedModule('/home/albert/magiokis/data/med/alleenal.med')
+    ## test = MedModule('/home/albert/magiokis/data/med/alsjener.med')
     test.checks()
     with open('/tmp/alleenal.patterns', 'w') as _out:
+    ## with open('/tmp/alsjener.patterns', 'w') as _out:
         for i in range(test.pattern_count):
             extra = ''
             if i in test.pattern_desc:
@@ -269,10 +270,15 @@ if __name__ == "__main__":
             for line in test.pattern_data[i]:
                 print(line, file=_out)
     with open('/tmp/alleenal.instrument', 'w') as _out:
+    ## with open('/tmp/alsjener.instrument', 'w') as _out:
         test.print_instrument(3, _out)
+        ## test.print_instrument(11, _out)
+    mapping = ((2, 'b'), (4, 'd'), (5, 'h'))
+    ## mapping = ((2, 'b'), (3, 's'), (5, 'h'), (8, 'c'), (9, 'r'), (10, 'C'))
     with open('/tmp/alleenal.drums', 'w') as _out:
-        test.print_drums(((2, 'b'), (4, 'd'), (5, 'h')), 'hdb', _out)
+    ## with open('/tmp/alsjener.drums', 'w') as _out:
+        test.print_drums(mapping, 'hdb', _out)
+        ## test.print_drums(mapping, 'Ccrhsb', _out)
     with open('/tmp/alleenal.general', 'w') as _out:
-        test.print_module_details(_out, ((2, 'b'), (4, 'd'), (5, 'h')))
-
-
+    ## with open('/tmp/alsjener.general', 'w') as _out:
+        test.print_module_details(_out, mapping)
