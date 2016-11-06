@@ -113,7 +113,7 @@ class ModFile:
         ## print(test.restart)
         ## print(test.highpatt)
         ## print(test.modtype)
-        data.append('\npatterns:')
+        data.extend(['', 'patterns:'])
         printable = '          '
         count = 8
         for ix, x in enumerate(self.playseq):

@@ -22,6 +22,7 @@ import modreader
 import midreader
 import medreader
 import mmpreader
+import rppreader
 
 class MainFrame(qtw.QWidget):
 
@@ -116,6 +117,19 @@ class MainFrame(qtw.QWidget):
 
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
+        hbox.addWidget(qtw.QLabel("Destination:", self))
+        self.basedir = os.path.expanduser('~/magiokis/data/transcripts')
+
+        self.dest = qtw.QLabel(self.basedir, self)
+        hbox.addWidget(self.dest)
+        dest_button = qtw.QPushButton("Ch&ange", self)
+        dest_button.clicked.connect(self.change_dest)
+        hbox.addWidget(dest_button)
+        hbox.addStretch()
+        vbox.addLayout(hbox)
+
+        hbox = qtw.QHBoxLayout()
+        hbox.addStretch()
         create_button = qtw.QPushButton("&Create transcription files", self)
         create_button.clicked.connect(self.create_files)
         hbox.addWidget(create_button)
@@ -173,12 +187,12 @@ class MainFrame(qtw.QWidget):
         if oupad == "":
              oupad = '/home/albert/magiokis/data'
         name, pattern = qtw.QFileDialog.getOpenFileName(self, "Open File", oupad,
-            "Known files (*.mod *.mid *.med *mmpz)")
+            "Known files (*.mod *.mid *.med *mmpz *rpp)")
         if name != "" and name != oupad:
             self.ask_modfile.setEditText(name)
             if name not in self._mru_items:
                 self._mru_items.append(name)
-                if len(self._mru_items) > 10:
+                if len(self._mru_items) > 9:
                     self._mru_items.pop(0)
                 self.ask_modfile.addItem(name)
 
@@ -192,33 +206,44 @@ class MainFrame(qtw.QWidget):
         if msg:
             qtw.QMessageBox.information(self, self.title, msg)
             return
-        test = os.path.splitext(pad)[1]
-        if test == '.mod':
+        self.ftype = os.path.splitext(pad)[1][1:].lower()
+        if self.ftype == 'mod':
             self.loaded = modreader.ModFile(pad)
             self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
             self.drums = []
-        elif test == '.mid':
+        elif self.ftype == 'mid':
             self.loaded = midreader.MidiFile(pad)
             self.nondrums = [x[0] for x in self.loaded.instruments.values()
                 if x[1] != 10]
             self.drums = [x[0] + " (*)" for x in self.loaded.instruments.values()
                 if x[1] == 10]
-        elif test == '.med':
+        elif self.ftype == 'med':
             self.loaded = medreader.MedModule(pad)
             self.nondrums = self.loaded.samplenames[1:]
             self.drums = []
-        elif test == '.mmpz':
+        elif self.ftype == 'mmpz':
             self.loaded = mmpreader.MMPFile(pad)
             self.nondrums = self.loaded.tracknames
             if self.loaded.bbtracknames:
                 self.drums = self.loaded.bbtracknames
             else:
                 self.drums = []
+        elif self.ftype == 'rpp':
+            self.loaded = rppreader.RppFile(pad)
+            ## for x, y in self.loaded.patterns.items():
+                ## print(y[0][1])
+            self.nondrums = [y for x, y in self.loaded.instruments.items()
+                if not self.loaded.patterns[x][0][1]['drumtrack']]
+            self.drums = [y + ' (*)' for x, y in self.loaded.instruments.items()
+                if self.loaded.patterns[x][0][1]['drumtrack']]
         self.list_samples.clear()
         self.list_samples.addItems(self.nondrums)
         self.mark_samples.clear()
         if self.drums:
             self.mark_samples.addItems(self.drums)
+        self.newdir = os.path.join(self.basedir,
+            os.path.splitext(os.path.basename(pad))[0]).replace('_', ' ')
+        self.dest.setText(self.newdir)
 
     def activate_left(self, *args):
         item = self.list_samples.currentItem()
@@ -346,9 +371,20 @@ class MainFrame(qtw.QWidget):
             selindx = self.mark_samples.row(item)
             self.mark_samples.takeItem(selindx)
 
+    def change_dest(self):
+        name, ok = qtw.QInputDialog.getText(self, "Change Name", "", text=self.newdir)
+        if ok:
+            self.newdir = name
+            self.dest.setText(self.newdir)
+
+        ## self.push()
+
+    def push(self):
+        qtw.QMessageBox.information(self, 'The Modreadergui Adventure',
+            'You push a button.\n\nNothing happens.')
+
     def create_files(self):
         msg = ''
-        test = os.path.splitext(self.loaded.filename)[1]
         if not self.loaded:
             msg = 'Please load a module first'
 
@@ -359,8 +395,6 @@ class MainFrame(qtw.QWidget):
             qtw.QMessageBox.information(self, self.title, msg)
             return
 
-        pad = self.ask_modfile.currentText()
-        self.newdir = os.path.splitext(pad)[0]
         try:
             os.mkdir(self.newdir)
         except FileExistsError:
@@ -368,12 +402,13 @@ class MainFrame(qtw.QWidget):
         self.dts = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
 
         go = {
-            '.mod': self.process_modfile,
-            '.mid': self.process_midifile,
-            '.med': self.process_medfile,
-            '.mmpz': self.process_mmpfile,
+            'mod': self.process_modfile,
+            'mid': self.process_midifile,
+            'med': self.process_medfile,
+            'mmpz': self.process_mmpfile,
+            'rpp': self.process_rppfile,
             }
-        go[test]()
+        go[self.ftype]()
         qtw.QMessageBox.information(self, self.title, 'Done')
 
 
@@ -393,16 +428,16 @@ class MainFrame(qtw.QWidget):
     def check_letter_assignment(self):
         msg = ''
         samples, letters, printseq = [], [], ''
-        if not msg:
-            # get all letters assigned to sample
-            all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
-                self.mark_samples))]
-            try:
-                for x, y in [z.rsplit(None, 1) for z in all_item_texts]:
-                    samples.append(x)
-                    letters.append(y[1:-1])
-            except ValueError:
-                msg = 'Please assign letters to *all* drumtracks'
+
+        # get all letters assigned to sample
+        all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
+            self.mark_samples))]
+        try:
+            for x, y in [z.rsplit(None, 1) for z in all_item_texts]:
+                samples.append(x)
+                letters.append(y[1:-1])
+        except ValueError:
+            msg = 'Please assign letters to *all* drumtracks'
 
         if not msg:
             printseq = "".join([x for x in letters if len(x) == 1])
@@ -428,6 +463,16 @@ class MainFrame(qtw.QWidget):
         return msg
 
 
+    def get_general_filename(self):
+        return self.get_instrument_filename('general')
+
+    def get_drums_filename(self):
+        return self.get_instrument_filename('drums')
+
+    def get_instrument_filename(self, name):
+        return os.path.join(self.newdir, '{}-{}-{}'.format(self.dts, self.ftype,
+            name))
+
     def process_modfile(self):
         drums = []
         nondrums = []
@@ -443,28 +488,25 @@ class MainFrame(qtw.QWidget):
                 ix = samples_2.index(data[0])
                 nondrums.append((num + 1, data[0]))
 
-        with open(os.path.join(self.newdir, '{}-general'.format(self.dts)),
-                "w") as out:
+        with open(self.get_general_filename(), "w") as out:
             if drums:
                 self.loaded.print_general_data(out, drums)
             else:
                 self.loaded.print_general_data(out)
         if drums:
-            with open(os.path.join(self.newdir, '{}-drums'.format(self.dts)),
-                    "w") as out:
+            with open(self.get_drums_filename(), "w") as out:
                 self.loaded.print_drums(drums, printseq, out)
         for number, name in nondrums:
-            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, name)),
-                    "w") as out:
+            with open(self.get_instrument_filename(name), "w") as out:
                 self.loaded.print_instrument(number, out)
 
     def process_midifile(self):
-        with open(os.path.join(self.newdir, '{}-instruments'.format(self.dts))
-                , 'w') as _out:
+        # this is assuming I only have midi files that use a separate drum track
+        # (instead of several tracks with one drum instrument each)
+        with open(self.get_general_filename(), "w") as _out:
             self.loaded.print_general_data(_out)
         for trackno, data in self.loaded.instruments.items():
-            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, data[0])),
-                    'w') as _out:
+            with open(self.get_instrument_filename(data[0]), 'w') as _out:
                 self.loaded.print_instrument(trackno, _out)
 
     def process_medfile(self):
@@ -482,19 +524,16 @@ class MainFrame(qtw.QWidget):
                 ix = samples_2.index(name)
                 nondrums.append((num + 1, name))
 
-        with open(os.path.join(self.newdir, '{}-general'.format(self.dts)),
-                "w") as out:
+        with open(self.get_general_filename(), "w") as out:
             if drums:
                 self.loaded.print_general_data(out, drums)
             else:
                 self.loaded.print_general_data(out)
         if drums:
-            with open(os.path.join(self.newdir, '{}-drums'.format(self.dts)),
-                    "w") as out:
+            with open(self.get_drums_filename(), "w") as out:
                 self.loaded.print_drums(drums, printseq, out)
         for number, name in nondrums:
-            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, name)),
-                    "w") as out:
+            with open(self.get_instrument_filename(name), "w") as out:
                 self.loaded.print_instrument(number, out)
 
     def process_mmpfile(self):
@@ -503,32 +542,33 @@ class MainFrame(qtw.QWidget):
             range(self.list_samples.count())]
         sample_map = list(zip(drumsamples, letters))
 
-        with open(os.path.join(self.newdir, '{}-general'.format(self.dts)),
-                "w") as _out:
+        with open(self.get_general_filename(), "w") as _out:
             self.loaded.print_general_data(sample_map, _out=_out)
 
         if [x for x, y in sample_map if y != '*']:
             if self.loaded.bbtracknames:
-                with open(os.path.join(self.newdir, '{}-bbdrums'.format(self.dts)),
-                        "w") as _out:
+                with open(self.get_instrument_filename('bbdrums'), "w") as _out:
                     self.loaded.print_beat_bassline(sample_map, printseq, _out=_out)
             else:
-                with open(os.path.join(self.newdir, '{}-drums'.format(self.dts)),
-                        "w") as _out:
+                with open(self.get_drums_filename(), "w") as _out:
                     self.loaded.print_drums(sample_map, printseq, _out=_out)
 
         for trackname in [x for x, y in sample_map if y == '*']:
-            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, trackname)),
-                    "w") as _out:
+            with open(self.get_instrument_filename(trackname), "w") as _out:
                 self.loaded.print_drumtrack(trackname, _out=_out)
 
         for trackname in inst_samples:
-            with open(os.path.join(self.newdir, '{}-{}'.format(self.dts, trackname)),
-                    "w") as _out:
+            with open(self.get_instrument_filename(trackname), "w") as _out:
                 self.loaded.print_instrument(trackname,_out=_out)
 
-
-
+    def process_rppfile(self):
+        # this is assuming I only have projects that use MIDI data
+        # where drums are in a separate track instead of one drum per track
+        with open(self.get_general_filename(), 'w') as _out:
+            self.loaded.print_general_data(_out)
+        for trackno, data in self.loaded.instruments.items():
+            with open(self.get_instrument_filename(data), 'w') as _out:
+                self.loaded.print_instrument(trackno, _out)
 
 app = qtw.QApplication(sys.argv)
 win = MainFrame()

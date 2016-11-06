@@ -44,11 +44,12 @@ class MidiFile:
 
     def print_general_data(self, stream=sys.stdout):
         printable = "Details of module {}".format(self.filename)
-        data = [printable, "=" * len(printable), '']
+        data = [printable, "=" * len(printable), '', 'instruments:']
         for x, y in self.instruments.items():
-            print('{:>2} {} (chn. {})'.format(x, y[0], y[1]), file=stream)
-        if self.weirdness: print('', file=stream)
-        for item in self.weirdness:
+            data.append('        {:>2} {} (chn. {})'.format(x, y[0], y[1]))
+        if self.weirdness:
+            data.extend([''] + [x for x in self.weirdness])
+        for item in data:
             print(item, file=stream)
 
 
