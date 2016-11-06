@@ -1,5 +1,7 @@
+import sys
 import collections
 import pprint
+import shared
 
 """
 Dit is een of ander xml-achtig formaat dat ook een soort van elementen kent
@@ -71,7 +73,7 @@ het lijkt erop dat die derde waarde niet alleen het type event aangeeft maar ook
 het channel number
 """
 
-class RrpFile:
+class RppFile:
 
     def __init__(self, filename):
         self.filename = filename
@@ -86,15 +88,16 @@ class RrpFile:
             }
         self.weirdness = []
         # mapping van naam op trackid(s)
-        self.instruments = []
+        self.instruments = {}
         # mapping van trackid op volgnr (s) op data
         self.patterns = collections.defaultdict(list)
         self.pattern_list = collections.defaultdict(list)
-        self.in_track = self.in_pattern = self.in_source = False
         self.read()
 
     def read(self):
 
+        self.in_track = self.in_pattern = self.in_source = False
+        self.instrument_number = 0
         with open(self.filename) as _in:
             for line in _in:
                 line = line.strip()
@@ -110,7 +113,7 @@ class RrpFile:
           <TRACK '{604D0845-C894-4422-B3F7-3CD51F610A63}'
         """
         ## print("in start_track:", data)
-        self.current_track = data[1:-1]
+        self.current_track = data[1:-1] # do I need this if I use instrument numbers?
         self.in_track = True
 
     def process_name(self, data):
@@ -120,8 +123,8 @@ class RrpFile:
         ## print("in process_name:", data)
         name = data[1:-1]
         if not self.in_pattern:
-            self.instrument_name = name
-            self.instruments.append(name)
+            self.instrument_number += 1
+            self.instruments[self.instrument_number] = name
         else:
             self.pattern_props = {'name': name}
 
@@ -170,21 +173,20 @@ class RrpFile:
         self.timing += tick
         if evtype == 'c': # start new pattern
             if self.pattern_events:
-                self.patterns[self.current_track].append((self.pattern_no,
+                self.patterns[self.instrument_number].append((self.pattern_no,
                     self.pattern_props, self.pattern_events))
                 self.pattern_events = collections.defaultdict(list)
             self.pattern_no += 1
             self.pattern_start = self.timing
-            self.pattern_list[self.current_track].append((self.pattern_no,
+            self.pattern_list[self.instrument_number].append((self.pattern_no,
                 self.pattern_start // (self.pattern_props['resolution'] // 4)))
         if evtype != '9': # we're only interested in `note on`
             return
         now = self.timing - self.pattern_start
         now = now // (self.pattern_props['resolution'] // 4)
-        if channel == '9':
-            self.pattern_events[pitch].append(now)
-        else:
-            self.pattern_events[channel].append((pitch, now))
+        if 'drumtrack' not in self.pattern_props:
+            self.pattern_props['drumtrack'] = True if channel == '9' else False
+        self.pattern_events[pitch].append(now)
 
     def end_stuff(self, data):
         """
@@ -194,7 +196,7 @@ class RrpFile:
         ## print("in end_level, in_track: {}, in_pattern: {}, in_source: {}".format(
             ## self.in_track, self.in_pattern, self.in_source))
         if self.in_source:
-            self.patterns[self.current_track].append((self.pattern_no,
+            self.patterns[self.instrument_number].append((self.pattern_no,
                 self.pattern_props, self.pattern_events))
             ## self.pattern_no += 1
             ## self.pattern_list[self.current_track].append((self.pattern_no,
@@ -205,27 +207,94 @@ class RrpFile:
         elif self.in_track:
             self.in_track = False
 
+    def print_general_data(self, stream=sys.stdout):
+        printable = "Details of project {}".format(self.filename)
+        data = [printable, "=" * len(printable), '', 'instruments:']
+        for number, name in sorted(self.instruments.items()):
+            data.append("        {:>2}:{}".format(number, name))
+        data.extend(['', ''])
+        for item, value in self.pattern_list.items():
+            data.append('pattern_list for instrument {}'.format(item))
+            for pattnum, pattstart in value:
+                data.append('        {:>2} at {:>3}'.format(pattnum, pattstart))
+            data.append('')
+        for line in data:
+            print(line, file=stream)
+
+    def print_instrument(self, trackno, stream=sys.stdout):
+        data = []
+        unlettered = set()
+        for patt_no, props, patt_data in self.patterns[trackno]:
+            data.append('pattern {} ({})'.format(patt_no, props['name']))
+            is_drumtrack = props['drumtrack']
+            printables = collections.defaultdict(list)
+            for key, note_events in patt_data.items():
+                seqnum = 0
+                events = []
+                if is_drumtrack:
+                    notestr = shared.get_inst_name(key - 35)
+                    empty, delim = '.', ''
+                    if notestr == '?':
+                        unlettered.add('no letter yet for `{}`'.format(
+                            shared.gm_drums[pitch - 35][1]))
+                    else:
+                        key = shared.standard_printseq.index(notestr)
+                else:
+                    notestr = shared.get_note_name(key - 12)
+                    empty, delim = '...', ' '
+                for i in range(32 * (note_events[-1] // 32 + 1)):
+                    if i in note_events:
+                        events.append(notestr)
+                    else:
+                        events.append(empty)
+                    if (i + 1) % 32 == 0:
+                        seqnum += 1
+                        if events != 32 * [empty]:
+                            printables[seqnum].append((key, delim.join(events)))
+                        events = []
+            for key, pattern_lines in sorted(printables.items()):
+                printlines = sorted(pattern_lines)
+                if not is_drumtrack:
+                    printlines = reversed(printlines)
+                data.extend([12 * ' ' + y for x, y in printlines])
+                data.append('')
+        for line in data:
+            print(line, file=stream)
+        for x in unlettered: print(x, file=stream)
+
+
 def main():
-    test = RrpFile('/home/albert/magiokis/data/reaper/alleen al.RPP')
+    test = RppFile('/home/albert/magiokis/data/reaper/alleen al.RPP')
     with open('/tmp/alleen_al-rpp.out', 'w') as _out:
         ## pprint.pprint(test.__dict__, stream=_out)
-        print('instruments:', file=_out)
-        for item in test.instruments:
-            print('   ', item, file=_out)
+        ## print('instruments:', file=_out)
+        ## for item in test.instruments:
+            ## print('   ', item, file=_out)
+            ## #pprint.pprint(value, stream=_out)
+        test.print_general_data(_out)
+        ## print('pattern data', file=_out)
+        ## for item, pattern in test.patterns.items():
+            ## print('track', item, file=_out)
+            ## #print(pattern)
+            ## for patt_no, props, data in pattern:
+                ## print('  pattern {}'.format(patt_no), file=_out)
+                ## for item, value in props.items():
+                    ## print('    {}: {}'.format(item, value), file=_out)
+                ## for item, value in data.items():
+                    ## print('    {}: {}'.format(item, value), file=_out)
+        ## for item, value in test.pattern_list.items():
+            ## print('pattern_list', item, file=_out)
             ## pprint.pprint(value, stream=_out)
-        print('pattern data', file=_out)
-        for item, pattern in test.patterns.items():
-            print('track', item, file=_out)
-            ## print(pattern)
-            for patt_no, props, data in pattern:
-                print('  pattern {}'.format(patt_no), file=_out)
-                for item, value in props.items():
-                    print('    {}: {}'.format(item, value), file=_out)
-                for item, value in data.items():
-                    print('    {}: {}'.format(item, value), file=_out)
-        for item, value in test.pattern_list.items():
-            print('pattern_list', item, file=_out)
-            pprint.pprint(value, stream=_out)
+        for number in test.instruments:
+            text = 'pattern data for track/instrument {}'.format(number)
+            print(text, file=_out)
+            print('_' * len(text), file=_out)
+            print('', file=_out)
+            test.print_instrument(number, _out)
 
 if __name__ == '__main__':
+    ## for x in (64, 57, 76):
+        ## print(shared.get_note_name(x-12))
+    ## for x in (42, 35, 50):
+        ## print(shared.get_inst_name(x-35))
     main()
