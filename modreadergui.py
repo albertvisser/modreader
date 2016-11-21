@@ -349,11 +349,12 @@ class MainFrame(qtw.QWidget):
         if not selected:
             return
         try:
-            inst, data = selected[0].text().split()
+            inst, data = selected[0].text().rsplit(None, 1)
         except ValueError:
             inst, data = selected[0].text(), ''
         text, ok = qtw.QInputDialog.getText(self, self.title, 'Enter letter(s) '
-            'to be printed for "{}"\n("*" for a midi drumtrack)'.format(inst), text=data[1:-1])
+            'to be printed for "{}"\n("*" for a midi drumtrack)'.format(inst),
+            text=data[1:-1])
         if ok:
             if text:
                 inst += " ({})".format(text)
@@ -441,7 +442,8 @@ class MainFrame(qtw.QWidget):
 
         if not msg:
             printseq = "".join([x for x in letters if len(x) == 1])
-            if len(printseq) != len(set(printseq)):
+            test_printseq = printseq.replace('*', '')
+            if len(test_printseq) != len(set(test_printseq)):
                 msg = 'Please correct multiple assignments to the same letter'
 
         if not msg:
