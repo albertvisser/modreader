@@ -219,13 +219,14 @@ class MainFrame(qtw.QWidget):
                 if x[1] == 10]
         elif self.ftype == 'med':
             self.loaded = medreader.MedModule(pad)
-            self.nondrums = self.loaded.samplenames[1:]
+            self.nondrums = self.loaded.samplenames
             self.drums = []
         elif self.ftype == 'mmpz':
             self.loaded = mmpreader.MMPFile(pad)
             self.nondrums = self.loaded.tracknames
             if self.loaded.bbtracknames:
-                self.drums = self.loaded.bbtracknames
+                self.drums = ['{} ({})'.format(x, x[0])
+                    for x in self.loaded.bbtracknames]
             else:
                 self.drums = []
         elif self.ftype == 'rpp':
@@ -239,6 +240,7 @@ class MainFrame(qtw.QWidget):
         self.list_samples.clear()
         self.list_samples.addItems(self.nondrums)
         self.mark_samples.clear()
+        self.usedtohave = {}
         if self.drums:
             self.mark_samples.addItems(self.drums)
         self.newdir = os.path.join(self.basedir,
@@ -292,6 +294,12 @@ class MainFrame(qtw.QWidget):
             it = self.list_samples.takeItem(id)
             templist.insert(0, it)
         for item in templist:
+            test = item.text()
+            try:
+                letter = self.usedtohave[test]
+            except KeyError:
+                letter = ''.join([x.strip()[0].lower() for x in test.split('+')])
+            item.setText('{} ({})'.format(test, letter))
             self.mark_samples.addItem(item)
             self.mark_samples.setCurrentItem(item)
             item.setSelected(True)
@@ -308,7 +316,11 @@ class MainFrame(qtw.QWidget):
             id = self.mark_samples.row(item)
             it = self.mark_samples.takeItem(id)
             templist.insert(0, it)
-        for item in selected:
+        for item in templist:
+            test = item.text()
+            x, y = test.rsplit(' (', 1)
+            item.setText(x)
+            self.usedtohave[x] = y[:-1]
             self.list_samples.addItem(item)
             self.list_samples.setCurrentItem(item)
             item.setSelected(True)

@@ -164,9 +164,8 @@ class MedModule:
                 for sampnum, sampstr in sample_list:
                     if sampnum == sample_number + 1:
                         sample_string = sampstr.join((' (', ')'))
-            if sample_number > 0:
-                data.append(("sample {:>2}: {}".format(sample_number,
-                    sample_name + sample_string)))
+            data.append(("sample {:>2}: {}".format(sample_number,
+                sample_name + sample_string)))
 
         data.append('patterns:')
         printable = '          '
