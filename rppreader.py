@@ -154,6 +154,7 @@ class RppFile:
         self.pattern_props['resolution'] = int(data.split()[1])
         self.pattern_data = collections.defaultdict(list)
         self.timing = 0
+        self.track_start = True
         self.pattern_events = collections.defaultdict(list)
 
     def process_event(self, data):
@@ -171,15 +172,17 @@ class RppFile:
         ## print(pitch)
         velocity = data[3]
         self.timing += tick
-        if evtype == 'c': # start new pattern
+        if self.track_start or evtype == 'c': # start new pattern
             if self.pattern_events:
                 self.patterns[self.instrument_number].append((self.pattern_no,
                     self.pattern_props, self.pattern_events))
                 self.pattern_events = collections.defaultdict(list)
             self.pattern_no += 1
-            self.pattern_start = self.timing
+            self.pattern_start = 0 if self.track_start else self.timing
+            ## self.pattern_start = self.timing
             self.pattern_list[self.instrument_number].append((self.pattern_no,
                 self.pattern_start // (self.pattern_props['resolution'] // 4)))
+            if self.track_start: self.track_start = False
         if evtype != '9': # we're only interested in `note on`
             return
         now = self.timing - self.pattern_start
@@ -222,6 +225,8 @@ class RppFile:
             print(line, file=stream)
 
     def print_instrument(self, trackno, stream=sys.stdout):
+        with open('/tmp/berendina-track-{}'.format(trackno), 'w') as _out:
+            pprint.pprint(self.patterns[trackno], stream=_out)
         data = []
         unlettered = set()
         for patt_no, props, patt_data in self.patterns[trackno]:
@@ -242,14 +247,15 @@ class RppFile:
                 else:
                     notestr = shared.get_note_name(key - 12)
                     empty, delim = '...', ' '
-                for i in range(32 * (note_events[-1] // 32 + 1)):
+                factor = 32 # 64 if is_drumtrack else 32
+                for i in range(factor * (note_events[-1] // factor + 1)):
                     if i in note_events:
                         events.append(notestr)
                     else:
                         events.append(empty)
-                    if (i + 1) % 32 == 0:
+                    if (i + 1) % factor == 0:
                         seqnum += 1
-                        if events != 32 * [empty]:
+                        if events != factor * [empty]:
                             printables[seqnum].append((key, delim.join(events)))
                         events = []
             for key, pattern_lines in sorted(printables.items()):
