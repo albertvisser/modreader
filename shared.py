@@ -19,7 +19,7 @@ gm_drums = [
     ('?', 'Low Wood Block'), ('?', 'Mute Cuica'), ('?', 'Open Cuica'),
     ('?', 'Mute Triangle'), ('?', 'Open Triangle'),
     ]
-standard_printseq = 'SCcroHhGgDdsFfb'
+standard_printseq = 'SCcRrOoHhGgDdsFfbB'
 
 def get_note_name(inp):
     """translate note number to note name
