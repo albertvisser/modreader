@@ -16,9 +16,14 @@ class MMPFile:
         self.read()
 
     def read(self):
+        mmpz_time = os.stat(self.filename).st_mtime
         project_name = os.path.splitext(os.path.basename(self.filename))[0]
         project_file = '/tmp/{}.mmp'.format(project_name)
-        if not os.path.exists(project_file):
+        try:
+            mmp_time = os.stat(project_file).st_mtime
+        except FileNotFoundError:
+            mmp_time = 0
+        if mmp_time < mmpz_time:
             with open(project_file, 'w') as _out:
                 subprocess.run(['lmms', '-d', self.filename], stdout=_out)
         data = et.ElementTree(file=project_file)
