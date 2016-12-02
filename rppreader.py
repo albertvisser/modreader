@@ -213,6 +213,8 @@ class RppFile:
         new_patterns = collections.defaultdict(list)
         new_pattern_list = collections.defaultdict(list)
         for track, pattern_start_list in self.pattern_list.items():
+            new_patterns_temp = []
+            new_pattern_list_temp = []
             newpattnum = 0
             for ix, item in enumerate(pattern_start_list):
                 oldpattnum, oldpattstart = item
@@ -234,12 +236,30 @@ class RppFile:
                     if not newpattdata:
                         break
                     newpattnum += 1
-                    new_pattern_list[track].append((newpattnum, newpattstart))
-                    new_patterns[track].append((newpattnum, oldpattprops,
+                    new_pattern_list_temp.append((newpattnum, newpattstart))
+                    new_patterns_temp.append((newpattnum, oldpattprops,
                         newpattdata))
-        with open('trackdata-rpp-2', 'w') as _out:
-            pprint.pprint(new_pattern_list, stream=_out)
-            pprint.pprint(new_patterns, stream=_out)
+            ## with open('trackdata-rpp-trk-{}'.format(track), 'w') as _out:
+                ## pprint.pprint(new_pattern_list_temp, stream=_out)
+                ## pprint.pprint(new_patterns_temp, stream=_out)
+            previous_patterns = []
+            newnum = 0
+            for ix, item in enumerate(new_patterns_temp):
+                patt, start = new_pattern_list_temp[ix]
+                num, props, data = item
+                try:
+                    num_ = previous_patterns.index(data) + 1
+                except ValueError:
+                    previous_patterns.append(data)
+                    newnum += 1
+                    num_ = newnum
+                    new_patterns[track].append((num_, props, data))
+                new_pattern_list[track].append((num_, start))
+        ## with open('trackdata-rpp-2', 'w') as _out:
+            ## pprint.pprint(new_pattern_list, stream=_out)
+            ## pprint.pprint(new_patterns, stream=_out)
+        self.patterns = new_patterns
+        self.pattern_list = new_pattern_list
 
 
 
@@ -261,7 +281,7 @@ class RppFile:
         data = []
         unlettered = set()
         for patt_no, props, patt_data in self.patterns[trackno]:
-            data.append('pattern {} ({})'.format(patt_no, props['name']))
+            data.append('pattern {}:'.format(patt_no))
             is_drumtrack = props['drumtrack']
             printables = collections.defaultdict(list)
             for key, note_events in patt_data.items():
