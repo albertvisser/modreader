@@ -94,20 +94,6 @@ class RppFile:
         self.pattern_list = collections.defaultdict(list)
         self.read()
 
-    def read(self):
-
-        self.in_track = self.in_pattern = self.in_source = False
-        self.instrument_number = 0
-        with open(self.filename) as _in:
-            for line in _in:
-                line = line.strip()
-                try:
-                    linetype, data = line.split(None, 1)
-                except ValueError:
-                    linetype = line
-                if linetype in self.procs:
-                    self.procs[linetype](data)
-
     def start_track(self, data):
         """identify track, e.g.
           <TRACK '{604D0845-C894-4422-B3F7-3CD51F610A63}'
@@ -210,6 +196,53 @@ class RppFile:
         elif self.in_track:
             self.in_track = False
 
+    def read(self):
+        """read the file into interbal structures
+        using the preceding methods/callbacks"""
+        self.in_track = self.in_pattern = self.in_source = False
+        self.instrument_number = 0
+        with open(self.filename) as _in:
+            for line in _in:
+                line = line.strip()
+                try:
+                    linetype, data = line.split(None, 1)
+                except ValueError:
+                    linetype = line
+                if linetype in self.procs:
+                    self.procs[linetype](data)
+        new_patterns = collections.defaultdict(list)
+        new_pattern_list = collections.defaultdict(list)
+        for track, pattern_start_list in self.pattern_list.items():
+            newpattnum = 0
+            for ix, item in enumerate(pattern_start_list):
+                oldpattnum, oldpattstart = item
+                oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][ix]
+                if oldpattnum2 != oldpattnum: # should never happen
+                    raise ValueError('self.patterns[{0}][{1}] is niet gelijk aan '
+                        'self.pattern_list[{0}][{1}]'.format(track, ix))
+                high_event = 0
+                while True:
+                    newpattdata = {}
+                    low_event = high_event
+                    newpattstart = oldpattstart + low_event
+                    high_event += 32
+                    for instval, instdata in oldpattdata.items():
+                        new_instdata = [x - low_event for x in instdata
+                            if low_event <= x < high_event]
+                        if new_instdata:
+                            newpattdata[instval] = new_instdata
+                    if not newpattdata:
+                        break
+                    newpattnum += 1
+                    new_pattern_list[track].append((newpattnum, newpattstart))
+                    new_patterns[track].append((newpattnum, oldpattprops,
+                        newpattdata))
+        with open('trackdata-rpp-2', 'w') as _out:
+            pprint.pprint(new_pattern_list, stream=_out)
+            pprint.pprint(new_patterns, stream=_out)
+
+
+
     def print_general_data(self, stream=sys.stdout):
         printable = "Details of project {}".format(self.filename)
         data = [printable, "=" * len(printable), '', 'instruments:']
@@ -225,8 +258,6 @@ class RppFile:
             print(line, file=stream)
 
     def print_instrument(self, trackno, stream=sys.stdout):
-        with open('/tmp/berendina-track-{}'.format(trackno), 'w') as _out:
-            pprint.pprint(self.patterns[trackno], stream=_out)
         data = []
         unlettered = set()
         for patt_no, props, patt_data in self.patterns[trackno]:
@@ -271,6 +302,10 @@ class RppFile:
 
 def main():
     test = RppFile('/home/albert/magiokis/data/reaper/alleen al.RPP')
+    with open('trackdata-rpp', 'w') as _out:
+        pprint.pprint(test.pattern_list, stream=_out)
+        pprint.pprint(test.patterns, stream=_out)
+    return
     with open('/tmp/alleen_al-rpp.out', 'w') as _out:
         ## pprint.pprint(test.__dict__, stream=_out)
         ## print('instruments:', file=_out)
