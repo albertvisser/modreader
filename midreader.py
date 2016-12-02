@@ -86,7 +86,7 @@ class MidiFile:
                         data.append(' '.join(printable))
                         printable = ['        ']
                 if seq == i:
-                    printable.append('{:>2}'.format(num))
+                    printable.append('{:>2}'.format(num + 1))
                     i += 1
                     if i % 8 == 0:
                         data.append(' '.join(printable))
@@ -100,7 +100,7 @@ class MidiFile:
         is_drumtrack = self.instruments[trackno][1] == 10
         empty = '.' if is_drumtrack else '...'
         for number, pattern in self.patterns[trackno]:
-            print('pattern {:>2}:'.format(number), file=stream)
+            print('pattern {:>2}:'.format(number + 1), file=stream)
             unlettered = set()
             printables = []
             for pitch in pattern:
