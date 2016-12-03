@@ -47,13 +47,13 @@ class MMPFile:
         for name, data in trackdata.items():
             pattnum = 0 # start with 1
             got_it = []
-            for seq, pattern in sorted(data):
+            for seq, pattern, len in sorted(data):
                 try:
                     pattern_number = got_it.index(sorted(pattern)) + 1
                 except ValueError:
                     got_it.append(sorted(pattern))
                     pattnum += 1
-                    patterndata[name].append(pattern)
+                    patterndata[name].append((pattern, len))
                     pattern_number = pattnum
                 patternlists[name].append(pattern_number)
         ## with open('/tmp/patterndata', 'w') as _out:
@@ -78,7 +78,7 @@ class MMPFile:
             ## pprint.pprint(bbtrackdata, stream=_out)
         drumtracks = collections.defaultdict(list)
         for name, data in bbtrackdata.items():
-            for num, track in enumerate(data[0]):
+            for num, track, len in enumerate(data[0]):
                 trackdata = track[1]
                 if trackdata:
                     drumtracks[num].append((name, trackdata))
@@ -113,6 +113,7 @@ class MMPFile:
         for pattnum, patt in enumerate(pattlist):
             pattname = patt.get('name')
             pattstart = int(patt.get('pos')) // 384
+            pattlen = int(patt.get('len')) // 12
             ## if bbtrack:
                 ## unit = int(patt.get('len')) // 32        # so we get 16th notes?
             ## else:
@@ -123,12 +124,13 @@ class MMPFile:
             for note in notelist:
                 when = int(note.get('pos')) // 12
                 if when >= max:
-                    patterns.append((pattstart, notes))
+                    patterns.append((pattstart, notes, 32))
+                    pattlen -= 32
                     pattstart += 1
                     max += 32
                     notes = []
                 notes.append((int(note.get('key')), when - max + 32)) # - (pattstart * 32)))
-            patterns.append((pattstart, notes))
+            patterns.append((pattstart, notes, pattlen))
         return patterns
 
     def print_general_data(self, sample_list=None, _out=sys.stdout):
@@ -191,7 +193,7 @@ class MMPFile:
 #    hier moet ik nog in voorzien dat er niet alleen drums maar ook bas oid meedoet
 #    theoretisch, want zelf gebruik ik dat eigenlijk niet?
     def print_beat_bassline(self, sample_list, printseq, _out=sys.stdout):
-        for pattnum, pattern in self.bbpatterndata.items():
+        for pattnum, pattern, pattlen in self.bbpatterndata.items():
             print('pattern {:>2}:'.format(pattnum + 1), file=_out)
             events = collections.defaultdict(list)
             for pattname, pattevents in pattern:
@@ -205,7 +207,7 @@ class MMPFile:
             for letter in printseq:
                 printable = ['          ']
                 out = False
-                for x in range(32):
+                for x in range(pattlen):
                     if x in events[letter]:
                         printable.append(letter)
                         out = True
@@ -218,7 +220,8 @@ class MMPFile:
 #- er word(t)(en) (een) midi drumtrack(s) gebruikt
     def print_drumtrack(self, trackname, _out=sys.stdout):
         unlettered = set()
-        for ix, pattern in enumerate(self.patterndata[trackname]):
+        for ix, pattdata in enumerate(self.patterndata[trackname]):
+            pattern, pattlen = pattdata
             print('\npattern {:>2}:'.format(ix + 1), file=_out)
             events = collections.defaultdict(list)
             for pitch, ev in pattern:
@@ -230,7 +233,7 @@ class MMPFile:
             for letter in shared.standard_printseq:
                 printable = ['          ']
                 out = False
-                for x in range(32):
+                for x in range(pattlen):
                     if x in events[letter]:
                         printable.append(letter)
                         out = True
@@ -245,18 +248,18 @@ class MMPFile:
         pass
 
     def print_instrument(self, trackname, _out=sys.stdout):
-        for ix, pattern in enumerate(self.patterndata[trackname]):
+        for ix, pattdata in enumerate(self.patterndata[trackname]):
+            pattern, pattlen = pattdata
             print('\npattern {:>2}:'.format(ix + 1), file=_out)
             events = collections.defaultdict(list)
             notes = set()
             for pitch, ev in pattern:
                 events[pitch].append(ev)
                 notes.add(pitch)
-            max_ev = max(32, (ev // 16) * 16 + 16)
             for pitch in reversed(sorted(notes)):
                 printable = ['          ']
                 out = False
-                for x in range(max_ev):
+                for x in range(pattlen):
                     if x in events[pitch]:
                         printable.append(shared.get_note_name(pitch))
                         out = True
