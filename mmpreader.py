@@ -45,15 +45,16 @@ class MMPFile:
         with open('/tmp/trackdata', 'w') as _out:
             print(trackdata, file=_out)
         for name, data in trackdata.items():
-            pattnum = -1
+            pattnum = 0 # start with 1
+            got_it = []
             for seq, pattern in sorted(data):
                 try:
-                    pattern_number = patterndata[name].index(pattern)
+                    pattern_number = got_it.index(sorted(pattern)) + 1
                 except ValueError:
+                    got_it.append(sorted(pattern))
                     pattnum += 1
                     patterndata[name].append(pattern)
-                    patternlists[name].append(pattnum)
-                    continue
+                    pattern_number = pattnum
                 patternlists[name].append(pattern_number)
         ## with open('/tmp/patterndata', 'w') as _out:
             ## for name in patterndata:
@@ -97,13 +98,13 @@ class MMPFile:
             bbevents.append(pattern)
         self.bbpatternlist = bbevents
 
-        ## with open('/tmp/aha-mmpdata', 'w') as _out:
-            ## print("instruments:", self.tracknames, file=_out)
-            ## print("\npattern list:", self.patternlists, file=_out)
-            ## print("\npatterns:", self.patterndata, file=_out)
-            ## print("\nbb instruments:", self.bbtracknames, file=_out)
-            ## print("\nbb pattern list:", self.bbpatterndata, file=_out)
-            ## print("\nbb patterns:", self.bbpatternlist, file=_out)
+        with open('/tmp/{}-mmpdata'.format(project_name), 'w') as _out:
+            print("instruments:", self.tracknames, file=_out)
+            print("\npattern list:", self.patternlists, file=_out)
+            print("\npatterns:", self.patterndata, file=_out)
+            print("\nbb instruments:", self.bbtracknames, file=_out)
+            print("\nbb pattern list:", self.bbpatterndata, file=_out)
+            print("\nbb patterns:", self.bbpatternlist, file=_out)
 
 
     def read_track(self, tracknum, track, bbtrack=False):
@@ -118,8 +119,15 @@ class MMPFile:
                 ## unit = int(patt.get('len')) // 64       # so we get 16th notes?
             notes = []
             notelist = patt.findall('note')
+            max = 32
             for note in notelist:
-                notes.append((int(note.get('key')), int(note.get('pos')) // 12))
+                when = int(note.get('pos')) // 12
+                if when >= max:
+                    patterns.append((pattstart, notes))
+                    pattstart += 1
+                    max += 32
+                    notes = []
+                notes.append((int(note.get('key')), when - max + 32)) # - (pattstart * 32)))
             patterns.append((pattstart, notes))
         return patterns
 
@@ -136,11 +144,11 @@ class MMPFile:
                         y = lett
                         break
                 if y: y = y.join(('(', ')'))
-                data.append("    {}: {} {}".format(i, x, y))
+                data.append("    {}: {} {}".format(i + 1, x, y))
             data.extend(["", "Patterns in Beat/Bassline:", ''])
             printable = []
             for i, x in enumerate(self.bbpatternlist):
-                printable.append('{:>2}'.format(x))
+                printable.append('{:>2}'.format(x + 1))
                 if (i + 1) % 8 == 0:
                     data.append("    {}".format(' '.join(printable)))
                     printable = []
@@ -150,17 +158,23 @@ class MMPFile:
 
         data.extend(["Instruments:", ''])
         for i, x in enumerate(self.tracknames):
-            data.append("    {}: {}".format(i, x))
+            data.append("    {}: {}".format(i + 1, x))
         data.extend(["", "Patterns per instrument:"])
         for i, x in enumerate(self.tracknames):
-            data.extend([ '', "    {}: {}".format(i, x), ''])
+            ## data.extend([ '', "    {}: {}".format(i + 1, x), ''])
+            z = ''
+            for name, letter in sample_list:
+                if name == x:
+                    z = letter.join(('(', ')'))
+            data.extend([ '', "    {}: {} {}".format(i + 1, x, z), ''])
             printable = []
             for j, y in enumerate(self.patternlists[x]):
-                z = ''
-                for name, letter in sample_list:
-                    if name == y:
-                        z = letter.join('(', ')')
-                printable.append('{:>2} {}'.format(y, z))
+                ## z = ''
+                ## for name, letter in sample_list:
+                    ## if name == y:
+                        ## z = letter.join('(', ')')
+                ## printable.append('{:>2} {}'.format(y, z))
+                printable.append('{:>2}'.format(y))
                 if (j + 1) % 8 == 0:
                     data.append("    {}".format(' '.join(printable)))
                     printable = []
@@ -178,7 +192,7 @@ class MMPFile:
 #    theoretisch, want zelf gebruik ik dat eigenlijk niet?
     def print_beat_bassline(self, sample_list, printseq, _out=sys.stdout):
         for pattnum, pattern in self.bbpatterndata.items():
-            print('pattern', pattnum, file=_out)
+            print('pattern {:>2}:'.format(pattnum + 1), file=_out)
             events = collections.defaultdict(list)
             for pattname, pattevents in pattern:
                 for name, letter in sample_list:
@@ -189,7 +203,7 @@ class MMPFile:
                         events[letter].append(ev)
                 ## print(letter, events[letter])
             for letter in printseq:
-                printable = ['    ']
+                printable = ['          ']
                 out = False
                 for x in range(32):
                     if x in events[letter]:
@@ -205,7 +219,7 @@ class MMPFile:
     def print_drumtrack(self, trackname, _out=sys.stdout):
         unlettered = set()
         for ix, pattern in enumerate(self.patterndata[trackname]):
-            print('\ndrum pattern', ix, file=_out)
+            print('\npattern {:>2}:'.format(ix + 1), file=_out)
             events = collections.defaultdict(list)
             for pitch, ev in pattern:
                 notestr = shared.get_inst_name(pitch - 23)
@@ -214,7 +228,7 @@ class MMPFile:
                         shared.gm_drums[pitch - 23][1]))
                 events[notestr].append(ev)
             for letter in shared.standard_printseq:
-                printable = ['    ']
+                printable = ['          ']
                 out = False
                 for x in range(32):
                     if x in events[letter]:
@@ -232,7 +246,7 @@ class MMPFile:
 
     def print_instrument(self, trackname, _out=sys.stdout):
         for ix, pattern in enumerate(self.patterndata[trackname]):
-            print('\npattern', ix, file=_out)
+            print('\npattern {:>2}:'.format(ix + 1), file=_out)
             events = collections.defaultdict(list)
             notes = set()
             for pitch, ev in pattern:
@@ -251,9 +265,10 @@ class MMPFile:
                 if out:
                     print(' '.join(printable), file=_out)
 
-if __name__ == "__main__":
+def main():
     test = MMPFile('/home/albert/lmms/projects/alleen_al.mmpz')
     ## test = MMPFile('/home/albert/lmms/projects/aha.mmpz')
+    return
     ## with open('/tmp/alleen-al-mmpdata', 'w') as _out:
     ## with open('/tmp/aha-mmpdata', 'w') as _out:
         ## print("instruments:", test.tracknames, file=_out)
@@ -282,3 +297,5 @@ if __name__ == "__main__":
     with open('/tmp/alleen-al-mmpdata-melodytrack', 'w') as _out:
         test.print_instrument('melody',_out=_out)
 
+if __name__ == "__main__":
+    main()
