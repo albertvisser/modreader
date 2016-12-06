@@ -293,6 +293,7 @@ class MainFrame(qtw.QWidget):
             id = self.list_samples.row(item)
             it = self.list_samples.takeItem(id)
             templist.insert(0, it)
+        self.mark_samples.clearSelection()
         for item in templist:
             test = item.text()
             try:
@@ -316,6 +317,7 @@ class MainFrame(qtw.QWidget):
             id = self.mark_samples.row(item)
             it = self.mark_samples.takeItem(id)
             templist.insert(0, it)
+        self.list_samples.clearSelection()
         for item in templist:
             test = item.text()
             x, y = test.rsplit(' (', 1)
