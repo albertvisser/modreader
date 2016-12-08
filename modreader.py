@@ -64,11 +64,13 @@ class ModFile:
 
     def __init__(self, filename):
         self.filename = filename
+        self.samples = {}
+        self.patterns = {}
+        self.pattern_data = {}
+        self.playseqs = collections.defaultdict(list)
         self.read()
 
     def read(self):
-        self.samples = {}
-        self.patterns = {}
         with open(self.filename, 'rb') as _in:
 
             self.name = str(_in.read(20), encoding='ascii')
@@ -116,24 +118,22 @@ class ModFile:
                 if last_event:
                     break
             if not last_event:
-                leng == 64
+                leng = 64
                 for samp in sample_list:
                     data[samp - 1][pattnum].insert(0, leng)
-        self.pattern_data = data
-        self.new_pattern_data = {}
-        self.playseqs = collections.defaultdict(list)
+        self._pattern_data = data
 
     def remove_duplicate_patterns(self, sampnum):
         renumber = collections.defaultdict(dict)
         pattern_list = []
-        for pattnum, patt in self.pattern_data[sampnum].items():
+        for pattnum, patt in self._pattern_data[sampnum].items():
             try:
-                new_pattnum = pattern_list.index(patt)
+                new_pattnum = pattern_list.index(patt) + 1
             except ValueError:
                 pattern_list.append(patt)
                 new_pattnum = len(pattern_list)
             renumber[pattnum] = new_pattnum
-        self.new_pattern_data[sampnum] = pattern_list
+        self.pattern_data[sampnum] = pattern_list
         for seq in self.playseq:
             if seq in renumber:
                 self.playseqs[sampnum].append(renumber[seq])
@@ -143,50 +143,44 @@ class ModFile:
     def remove_duplicate_drum_patterns(self, samplist):
         single_instrument_samples = [x - 1 for x, y in samplist if len(y) == 1]
         lookup = {y: x - 1 for x, y in samplist if len(y) == 1}
-        # self.pattern_data is een dict met per sample een dict van patterns
-        # dit moet om te beginnen een list (?) worden met per pattern
-        #     een dict van single instrument samples worden
-        # dan kunnen per pattern de multi-instrument samples eraan worden toegevoegd
-        # en daarna kunnen ze ontdubbeld worden
-        # waarna ook een drums-playseq kan worden samengesteld
-        drumpatterns = collections.defaultdict(dict)
-        pattlengths = collections.defaultdict(set)
-        for sampnum, sampdata in self.pattern_data.items():
+        samp2lett = {x - 1: y for x, y in samplist}
+        drumpatterns = collections.defaultdict(lambda: collections.defaultdict(list))
+        pattlengths = {}
+        for sampnum, sampdata in self._pattern_data.items():
             if sampnum not in single_instrument_samples:
                 continue
-            for num, lett in samplist:
-                if num == sampnum + 1:
-                    samplett = lett
+            samplett = samp2lett[sampnum]
             for pattnum, patt in sampdata.items():
                 drumpatterns[pattnum][samplett] = patt[1:]
-                pattlengths[pattnum].add(patt[0])
-        for sampnum, sampdata in self.pattern_data.items():
+                pattlengths[pattnum] = patt[0]
+        for sampnum, sampdata in self._pattern_data.items():
             if sampnum in single_instrument_samples:
                 continue
-            for x, y in samplist:
-                if sampnum == x:
-                    for pattnum, patt in sampdata.items():
-                        pattlengths[pattnum].add(patt[0])
-                        for item in patt[1:]:
-                            for letter in y:
-                                try:
-                                    drumpatterns[pattnum][letter].append(item)
-                                    drumpatterns[pattnum][letter].sort()
-                                except KeyError:
-                                    drumpatterns[pattnum][letter] = [item]
+            try:
+                instletters = samp2lett[sampnum]
+            except KeyError:
+                continue
+            for pattnum, patt in sampdata.items():
+                try:
+                    if patt[0] > pattlengths[pattnum]:
+                        pattlengths[pattnum] = patt[0]
+                except KeyError:
+                    pattlengths[pattnum] = patt[0]
+                for letter in instletters:
+                    drumpatterns[pattnum][letter].extend(patt[1:])
+                    drumpatterns[pattnum][letter].sort()
         for pattnum in drumpatterns:
-            drumpatterns[pattnum]['len'] = max(pattlengths[pattnum])
-        # dat was het in elkaar schuiven, nu het ontdubbelen nog
+            drumpatterns[pattnum]['len'] = pattlengths[pattnum]
         renumber = collections.defaultdict(dict)
         pattern_list = []
         for pattnum, patt in drumpatterns.items():
             try:
-                new_pattnum = pattern_list.index(patt)
+                new_pattnum = pattern_list.index(patt) + 1
             except ValueError:
                 pattern_list.append(patt)
                 new_pattnum = len(pattern_list)
             renumber[pattnum] = new_pattnum
-        self.new_pattern_data['drums'] = pattern_list
+        self.pattern_data['drums'] = pattern_list
         for seq in self.playseq:
             if seq in renumber:
                 self.playseqs['drums'].append(renumber[seq])
@@ -208,12 +202,9 @@ class ModFile:
                         sample_string = sampstr.join((' (', ')'))
             data.append(("sample {:>2}: {}".format(sample_number + 1,
                 sample_name + sample_string)))
-            # ontdubbelen van de patterns bij de instrument samples
             if sample_number not in drumsamples:
                 self.remove_duplicate_patterns(sample_number)
 
-        # omdat de playseq voor de drum tracks correct te tonen moeten deze hier eerst
-        # in elkaar geschoven worden, daarna kunnen ze ontdubbeld worden
         self.remove_duplicate_drum_patterns(sample_list)
 
         data.extend(['', 'patterns:', ''])
@@ -229,7 +220,7 @@ class ModFile:
                 if x == -1:
                     printable += ' . '
                 else:
-                    printable += '{:>2} '.format(x)
+                    printable += '{:>2} '.format(x) # start pattern display met 1
                 if (ix + 1) % count == 0:
                     data.append(printable)
                     printable = print_start
@@ -246,34 +237,9 @@ class ModFile:
         printseq indicates the sequence to print these top to bottom e.g. 'hsb'
         stream is a file-like object to write the output to
         """
-        # hier moet ook input bij die samples mapt op specifieke instrumenten, bv
-        # dit is de bassdrum, dit is de snare, en zelfs: dit is zowel bassdrum als snare
-        # (of dit aangeven d.m.v. de letter(s) die in de partituur getoond moeten worden
-        ## all_events = collections.defaultdict(lambda: collections.defaultdict(list))
-        ## maxlen = {}
-        ## for pattnum, pattern in self.patterns.items():
-            ## last_event = False
-            ## for ix, track in enumerate(pattern):
-                ## for event in track:
-                    ## samp, note, effect, _ = get_notedata(event)
-                    ## for sampnum, instruments in sample_list:
-                        ## if samp == sampnum:
-                            ## for ins in instruments:
-                                ## all_events[pattnum][ins].append(ix)
-                        ## if effect == 13:
-                            ## last_event = True
-                ## if last_event:
-                    ## maxlen[pattnum] = ix + 1
-                    ## break
-
-        ## for pattnum, pattern in all_events.items():
-        for pattnum, pattern in enumerate(self.new_pattern_data['drums']):
+        for pattnum, pattern in enumerate(self.pattern_data['drums']):
             pattlen = pattern['len']
-            print('pattern', pattnum, file=_out)
-            ## try:
-                ## pattlen = maxlen[pattnum]
-            ## except KeyError:
-                ## pattlen = 64
+            print('pattern', pattnum + 1, file=_out)
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
@@ -284,82 +250,26 @@ class ModFile:
                         print(printable, end='', file=_out)
                     print('', file=_out)
 
-    ## def print_instrument_flat(self, sample, _out):
-        ## """print the events for an instrument as a piano roll
-
-        ## sample is the number of the sample to print data for
-        ## stream is a file-like object to write the output to
-        ## """
-        ## all_events = []
-        ## for pattnum, pattern in self.patterns.items():
-            ## events = []
-            ## notes = set()
-            ## last_event = False
-            ## for track in pattern:
-                ## event_str = '...'
-                ## for event in track:
-                    ## samp, note, effect, _ = get_notedata(event)
-                    ## if samp == sample:
-                        ## event_str = note
-                        ## notes.add(note)
-                        ## break
-                    ## if effect == 13:
-                        ## last_event = True
-                ## events.append(event_str)
-                ## if last_event:
-                    ## break
-            ## if not notes:
-                ## continue
-            ## print('pattern {:>2}:'.format(pattnum), ' '.join(events), file=_out)
-
     def print_instrument(self, sample, _out):
         """print the events for an instrument as a piano roll
 
         sample is the number of the sample to print data for
         stream is a file-like object to write the output to
         """
-        ## all_events = collections.defaultdict(lambda: collections.defaultdict(list))
-        ## maxlen = {}
-        ## notes = collections.defaultdict(set)
-        ## for pattnum, pattern in self.patterns.items():
-            ## events = []
-            ## last_event = False
-            ## for ix, track in enumerate(pattern):
-                ## note_found = False
-                ## for event in track:
-                    ## samp, note, effect, _ = get_notedata(event)
-                    ## if samp == sample and note:
-                        ## all_events[pattnum][note].append(ix)
-                        ## notes[pattnum].add(note)
-                    ## if effect == 13:
-                        ## last_event = True
-                ## if last_event:
-                    ## maxlen[pattnum] = ix + 1
-                    ## break
-            ## if not notes:
-                ## continue
-        for pattnum, pattern in enumerate(self.new_pattern_data[sample - 1]):
+        for pattnum, pattern in enumerate(self.pattern_data[sample - 1]):
             pattlen = pattern.pop(0)
             print('pattern', pattnum + 1, file=_out) #  display starting with 1
-            ## try:
-                ## pattlen = maxlen[pattnum]
-            ## except KeyError:
-                ## pattlen = 64
             notes = collections.defaultdict(list)
             for timing, note in pattern:
                 notes[note].append(timing)
-            ## for notestr in reversed(sorted(notes[pattnum], key=shared.getnotenum)):
             for notestr in reversed(sorted([x for x in notes],
                     key=shared.getnotenum)):
                 print('           ', end='', file=_out)
-                ## for note, events in pattern.items():
-                    ## if note == notestr:
                 events = notes[notestr]
 
                 for tick in range(pattlen):
                     printable = notestr if tick in events else '...'
                     print(printable, end= ' ', file=_out)
-                ## break
                 print('', file=_out)
             print('', file=_out)
 
