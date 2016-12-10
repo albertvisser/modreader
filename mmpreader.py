@@ -268,37 +268,3 @@ class MMPFile:
                 if out:
                     print(' '.join(printable), file=_out)
 
-def main():
-    test = MMPFile('/home/albert/lmms/projects/alleen_al.mmpz')
-    ## test = MMPFile('/home/albert/lmms/projects/aha.mmpz')
-    return
-    ## with open('/tmp/alleen-al-mmpdata', 'w') as _out:
-    ## with open('/tmp/aha-mmpdata', 'w') as _out:
-        ## print("instruments:", test.tracknames, file=_out)
-        ## print("\npattern list:", test.patternlists, file=_out)
-        ## print("\npatterns:", test.patterndata, file=_out)
-        ## print("\nbb instruments:", test.bbtracknames, file=_out)
-        ## print("\nbb pattern list:", test.bbpatterndata, file=_out)
-        ## print("\nbb patterns:", test.bbpatternlist, file=_out)
-    ## sys.exit(0)
-    ## with open('/tmp/alleen-al-mmpdata-general', 'w') as _out:
-    sample_list = [
-        ('crash01.ogg', 'c'),
-        ('ride01.ogg', 'r'),
-        ('hihat_closed01.ogg', 'h'),
-        ('snare01.ogg', 's'),
-        ('bassdrum_acoustic01.ogg', 'b'),
-        ('flickbass.wav', 'x')
-        ]
-    printseq = 'crhsb'
-    ## with open('/tmp/aha-mmpdata-general', 'w') as _out:
-        ## test.print_general_data(sample_list, _out=_out)
-    ## with open('/tmp/aha-mmpdata-bbtrack', 'w') as _out:
-        ## test.print_beat_bassline(sample_list, printseq, _out=_out)
-    with open('/tmp/alleen-al-mmpdata-drumtrack', 'w') as _out:
-        test.print_drumtrack('drums',_out=_out)
-    with open('/tmp/alleen-al-mmpdata-melodytrack', 'w') as _out:
-        test.print_instrument('melody',_out=_out)
-
-if __name__ == "__main__":
-    main()

@@ -136,14 +136,3 @@ class MidiFile:
             print('', file=stream)
         for x in unlettered: print(x, file=stream)
 
-def main():
-    filename = '/home/albert/magiokis/data/mid/alleen_al.mid'
-    test = MidiFile(filename)
-    ## with open('/tmp/alleen_al_instruments', 'w') as _out:
-        ## test.print_general_data(_out)
-    ## for trackno, data in test.instruments.items():
-        ## with open('/tmp/alleen_al_{}'.format(data[0]), 'w') as _out:
-            ## test.print_instrument(trackno, _out)
-
-if __name__ == "__main__":
-    main()

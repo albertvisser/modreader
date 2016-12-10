@@ -219,7 +219,7 @@ class MainFrame(qtw.QWidget):
                 if x[1] == 10]
         elif self.ftype == 'med':
             self.loaded = medreader.MedModule(pad)
-            self.nondrums = self.loaded.samplenames
+            self.nondrums = [x[1] for x in self.loaded.samplenames]
             self.drums = []
         elif self.ftype == 'mmpz':
             self.loaded = mmpreader.MMPFile(pad)
@@ -472,7 +472,7 @@ class MainFrame(qtw.QWidget):
                     self.remove_button.setEnabled(True)
                     ready = False
             if not ready:
-                msg = ' '.join(('Please relocate the dummy samples',
+                msg = ' '.join(('Please relocate the dummy sample(s)',
                     'so their letters are in the right position'))
 
         self._assigned = samples, letters, printseq
@@ -533,6 +533,7 @@ class MainFrame(qtw.QWidget):
             len(self.list_samples))]
 
         for num, name in enumerate(self.loaded.samplenames):
+            name = name[1]
             if name in samples:
                 ix = samples.index(name)
                 drums.append((num + 1, letters[ix]))
