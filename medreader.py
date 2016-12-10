@@ -291,7 +291,8 @@ class MedModule:
                 sample_name + sample_string)))
             if sample_number not in drumsamples:
                 self.remove_duplicate_patterns(sampseq)
-        self.remove_duplicate_drum_patterns(sample_list)
+        if drumsamples:
+            self.remove_duplicate_drum_patterns(sample_list)
 
         data.extend(['', 'patterns:', ''])
         printable = print_start = '          '
