@@ -10,3 +10,4 @@ syntax: glob
 pylint*
 data/*
 mru_files
+defaults.py

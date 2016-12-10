@@ -40,8 +40,11 @@ It's also possible to redefine the vertical order of the drum instruments either
 by the sequence in which you transfer them or by reordering them in the list.
 
 When all that is done you can press the button and a directory is created
-"next to" the module file (unless it already exists)
+at the chosen location (unless it already exists)
 and files containing the transcripts are placed into it.
+The location is predefined but can be changed either by supplying a different
+default value in the config file, or by using the "Change" button and changing
+the path in the file selector.
 You get one file for the collected drums, a file for each remaining instrument
 and a file containing some general data, such as the sequence of patterns.
 I added a date/time stamp to the names so that the process can be repeated without
@@ -49,17 +52,23 @@ overwriting existing files.
 
 Depending on the file extension, appropriate parsing and transcription routines
 will be called.
+In the parsing, the philosophy of the module format - defining repeatable blocks of
+notes - is extended to the separation of instrument data. This should lead to files
+that are easily comparable across the various possible formats they were transcribed
+from..
 At the moment the following file types are recognized:
 
 - `.med`: OctaMed MMD0/MMD1 module format
 - `.mod`: (Amiga) SoundTracker module format
 - `.mid`: MIDI format
 - `.mmp`: LMMS project format
+- `.rpp`: Reaper project format (could be an older version)
 
-The latter two file types have possibilities to include a separate drum track
-(in which all the drum instruments have been put together). If this is the case
-the parsing routine will recognize this so that the instruments are
-presented in the right way.
+The latter three file types have possibilities to include a separate drum track,
+that is, one in which all the drum instruments have been put together.
+If this is the case the parsing routine will recognize this so that the instruments
+are presented in the right way.
+
 
 Dependencies: Python (3), PyQt5 for the most advanced version of the tool.
 If available, lxml is used for the xml parsing in mmpreader.

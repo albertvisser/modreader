@@ -18,6 +18,7 @@ import datetime
 import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as gui
 import PyQt5.QtCore as core
+import defaults
 import modreader
 import midreader
 import medreader
@@ -118,7 +119,7 @@ class MainFrame(qtw.QWidget):
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
         hbox.addWidget(qtw.QLabel("Destination:", self))
-        self.basedir = os.path.expanduser('~/magiokis/data/transcripts')
+        self.basedir = defaults.basedir
 
         self.dest = qtw.QLabel(self.basedir, self)
         hbox.addWidget(self.dest)
@@ -185,7 +186,7 @@ class MainFrame(qtw.QWidget):
         """event handler voor 'zoek in directory'"""
         oupad = self.ask_modfile.currentText()
         if oupad == "":
-             oupad = '/home/albert/magiokis/data'
+             oupad = defaults.location
         name, pattern = qtw.QFileDialog.getOpenFileName(self, "Open File", oupad,
             "Known files (*.mod *.mid *.med *mmpz *rpp)")
         if name != "" and name != oupad:
@@ -231,8 +232,6 @@ class MainFrame(qtw.QWidget):
                 self.drums = []
         elif self.ftype == 'rpp':
             self.loaded = rppreader.RppFile(pad)
-            ## for x, y in self.loaded.patterns.items():
-                ## print(y[0][1])
             self.nondrums = [y for x, y in self.loaded.instruments.items()
                 if not self.loaded.patterns[x][0][1]['drumtrack']]
             self.drums = [y + ' (*)' for x, y in self.loaded.instruments.items()
@@ -387,7 +386,8 @@ class MainFrame(qtw.QWidget):
             self.mark_samples.takeItem(selindx)
 
     def change_dest(self):
-        name, ok = qtw.QInputDialog.getText(self, "Change Name", "", text=self.newdir)
+        name, ok = qtw.QInputDialog.getText(self, "Change Name", "",
+            text=self.newdir)
         if ok:
             self.newdir = name
             self.dest.setText(self.newdir)
@@ -395,7 +395,7 @@ class MainFrame(qtw.QWidget):
         ## self.push()
 
     def push(self):
-        qtw.QMessageBox.information(self, 'The Modreadergui Adventure',
+        qtw.QMessageBox.information(self, 'The ModReaderGui Adventure',
             'You push a button.\n\nNothing happens.')
 
     def create_files(self):
