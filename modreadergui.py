@@ -24,6 +24,7 @@ import midreader
 import medreader
 import mmpreader
 import rppreader
+mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
 
 class MainFrame(qtw.QWidget):
 
@@ -37,7 +38,7 @@ class MainFrame(qtw.QWidget):
         self.title = "ModReaderGui"
         self.setWindowTitle(self.title)
         try:
-            with open('mru_files') as _in:
+            with open(mru_filename) as _in:
                 for line in _in:
                     if line.strip():
                         self._mru_items.append(line.strip())
@@ -433,7 +434,7 @@ class MainFrame(qtw.QWidget):
 
 
     def exit(self, *args):
-        with open('mru_files', 'w') as _out:
+        with open(mru_filename, 'w') as _out:
             for name in self._mru_items:
                 _out.write(name + '\n')
         pass # built in delay to avoid segfault
