@@ -273,8 +273,6 @@ class RppFile:
         self.patterns = new_patterns
         self.pattern_list = new_pattern_list
 
-
-
     def print_general_data(self, stream=sys.stdout):
         printable = "Details of project {}".format(self.filename)
         data = [printable, "=" * len(printable), '', 'instruments:']
@@ -283,8 +281,28 @@ class RppFile:
         data.extend(['', ''])
         for item, value in self.pattern_list.items():
             data.append('pattern_list for instrument {}'.format(item))
+            linestart = '        '
+            printable, counter = [linestart], 0
+            prev = 0
             for pattnum, pattstart in value:
-                data.append('        {:>2} at {:>3}'.format(pattnum, pattstart))
+                ## data.append('        {:>2} at {:>3}'.format(pattnum, pattstart))
+                while pattstart > prev:
+                    printable.append(' . ')
+                    counter += 1
+                    if counter >= 8:
+                        data.append(''.join(printable))
+                        printable, counter = [linestart], 0
+                    prev += 32
+                printable.append('{:>2} '.format(pattnum))
+                counter += 1
+                if counter >= 8:
+                    data.append(''.join(printable))
+                    printable, counter = [linestart], 0
+                    counter = 0
+                prev += 32
+            printable = ''.join(printable)
+            if printable.strip():
+                data.append(printable)
             data.append('')
         for line in data:
             print(line, file=stream)
