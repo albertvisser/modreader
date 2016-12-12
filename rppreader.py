@@ -216,6 +216,11 @@ class RppFile:
             new_patterns_temp = []
             new_pattern_list_temp = []
             newpattnum = 0
+            ## with open('/tmp/trackdata_rpp_trk-{}-initial'.format(track), 'w') as _out:
+                ## print('-- pattern_start_list --', file=_out)
+                ## print(pattern_start_list, file=_out)
+                ## print('-- track patterns --', file=_out)
+                ## print(self.patterns[track], file=_out)
             for ix, item in enumerate(pattern_start_list):
                 oldpattnum, oldpattstart = item
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][ix]
@@ -223,6 +228,7 @@ class RppFile:
                     raise ValueError('self.patterns[{0}][{1}] is niet gelijk aan '
                         'self.pattern_list[{0}][{1}]'.format(track, ix))
                 high_event = 0
+                data_started = False
                 while True:
                     newpattdata = {}
                     low_event = high_event
@@ -233,15 +239,19 @@ class RppFile:
                             if low_event <= x < high_event]
                         if new_instdata:
                             newpattdata[instval] = new_instdata
-                    if not newpattdata:
+                    if newpattdata:
+                        data_started = True
+                    elif data_started:
                         break
                     newpattnum += 1
                     new_pattern_list_temp.append((newpattnum, newpattstart))
                     new_patterns_temp.append((newpattnum, oldpattprops,
                         newpattdata))
-            ## with open('trackdata-rpp-trk-{}'.format(track), 'w') as _out:
-                ## pprint.pprint(new_pattern_list_temp, stream=_out)
-                ## pprint.pprint(new_patterns_temp, stream=_out)
+            ## with open('/tmp/trackdata-rpp-trk-{}_gesplitst'.format(track), 'w') as _out:
+                ## print('-- new_pattern_list_temp --', file=_out)
+                ## print(new_pattern_list_temp, file=_out)
+                ## print('-- new_patterns_temp --', file=_out)
+                ## print(new_patterns_temp, file=_out)
             previous_patterns = []
             newnum = 0
             for ix, item in enumerate(new_patterns_temp):
@@ -255,9 +265,11 @@ class RppFile:
                     num_ = newnum
                     new_patterns[track].append((num_, props, data))
                 new_pattern_list[track].append((num_, start))
-        ## with open('trackdata-rpp-2', 'w') as _out:
-            ## pprint.pprint(new_pattern_list, stream=_out)
-            ## pprint.pprint(new_patterns, stream=_out)
+            ## with open('/tmp/trackdata-rpp-trk-{}_ontdubbeld'.format(track), 'w') as _out:
+                ## print('-- new_pattern_ --', file=_out)
+                ## print(new_pattern_list[track], file=_out)
+                ## print(new_patterns[track], file=_out)
+                ## print('-- new_patterns --', file=_out)
         self.patterns = new_patterns
         self.pattern_list = new_pattern_list
 
