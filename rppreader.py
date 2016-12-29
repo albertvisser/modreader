@@ -174,7 +174,9 @@ class RppFile:
         now = self.timing - self.pattern_start
         now = now // (self.pattern_props['resolution'] // 4)
         if 'drumtrack' not in self.pattern_props:
-            self.pattern_props['drumtrack'] = True if channel == '9' else False
+            self.pattern_props['drumtrack'] = False
+            if channel == str(shared.drum_channel - 1):
+                self.pattern_props['drumtrack'] = True
         self.pattern_events[pitch].append(now)
 
     def end_stuff(self, data):
@@ -182,14 +184,9 @@ class RppFile:
         end of block starting with <, same on any level:
          >
         """
-        ## print("in end_level, in_track: {}, in_pattern: {}, in_source: {}".format(
-            ## self.in_track, self.in_pattern, self.in_source))
         if self.in_source:
             self.patterns[self.instrument_number].append((self.pattern_no,
                 self.pattern_props, self.pattern_events))
-            ## self.pattern_no += 1
-            ## self.pattern_list[self.current_track].append((self.pattern_no,
-                ## self.pattern_start))
             self.in_source = False
         elif self.in_pattern:
             self.in_pattern = False
@@ -216,11 +213,6 @@ class RppFile:
             new_patterns_temp = []
             new_pattern_list_temp = []
             newpattnum = 0
-            ## with open('/tmp/trackdata_rpp_trk-{}-initial'.format(track), 'w') as _out:
-                ## print('-- pattern_start_list --', file=_out)
-                ## print(pattern_start_list, file=_out)
-                ## print('-- track patterns --', file=_out)
-                ## print(self.patterns[track], file=_out)
             for ix, item in enumerate(pattern_start_list):
                 oldpattnum, oldpattstart = item
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][ix]
@@ -233,7 +225,7 @@ class RppFile:
                     newpattdata = {}
                     low_event = high_event
                     newpattstart = oldpattstart + low_event
-                    high_event += 32
+                    high_event += shared.per_line
                     for instval, instdata in oldpattdata.items():
                         new_instdata = [x - low_event for x in instdata
                             if low_event <= x < high_event]
@@ -247,11 +239,6 @@ class RppFile:
                     new_pattern_list_temp.append((newpattnum, newpattstart))
                     new_patterns_temp.append((newpattnum, oldpattprops,
                         newpattdata))
-            ## with open('/tmp/trackdata-rpp-trk-{}_gesplitst'.format(track), 'w') as _out:
-                ## print('-- new_pattern_list_temp --', file=_out)
-                ## print(new_pattern_list_temp, file=_out)
-                ## print('-- new_patterns_temp --', file=_out)
-                ## print(new_patterns_temp, file=_out)
             previous_patterns = []
             newnum = 0
             for ix, item in enumerate(new_patterns_temp):
@@ -265,45 +252,26 @@ class RppFile:
                     num_ = newnum
                     new_patterns[track].append((num_, props, data))
                 new_pattern_list[track].append((num_, start))
-            ## with open('/tmp/trackdata-rpp-trk-{}_ontdubbeld'.format(track), 'w') as _out:
-                ## print('-- new_pattern_ --', file=_out)
-                ## print(new_pattern_list[track], file=_out)
-                ## print(new_patterns[track], file=_out)
-                ## print('-- new_patterns --', file=_out)
         self.patterns = new_patterns
         self.pattern_list = new_pattern_list
 
     def print_general_data(self, stream=sys.stdout):
-        printable = "Details of project {}".format(self.filename)
-        data = [printable, "=" * len(printable), '', 'instruments:']
-        for number, name in sorted(self.instruments.items()):
-            data.append("        {:>2}:{}".format(number, name))
-        data.extend(['', ''])
+        data = shared.build_header("project", self.filename)
+        data.extend(shared.build_inst_list([(x, y) for x, y in sorted(
+            self.instruments.items())]))
+        data.extend(shared.build_patt_header())
         for item, value in self.pattern_list.items():
-            data.append('pattern_list for instrument {}'.format(item))
-            linestart = '        '
-            printable, counter = [linestart], 0
-            prev = 0
+            counter = 1
+            patt_list = []
             for pattnum, pattstart in value:
-                ## data.append('        {:>2} at {:>3}'.format(pattnum, pattstart))
-                while pattstart > prev:
-                    printable.append(' . ')
+                test = pattstart // 32
+                while test > counter:
+                    patt_list.append(-1)
                     counter += 1
-                    if counter >= 8:
-                        data.append(''.join(printable))
-                        printable, counter = [linestart], 0
-                    prev += 32
-                printable.append('{:>2} '.format(pattnum))
+                patt_list.append(pattnum)
                 counter += 1
-                if counter >= 8:
-                    data.append(''.join(printable))
-                    printable, counter = [linestart], 0
-                    counter = 0
-                prev += 32
-            printable = ''.join(printable)
-            if printable.strip():
-                data.append(printable)
-            data.append('')
+            data.extend(shared.build_patt_list(item, self.instruments[item],
+                patt_list))
         for line in data:
             print(line, file=stream)
 
@@ -311,24 +279,24 @@ class RppFile:
         data = []
         unlettered = set()
         for patt_no, props, patt_data in self.patterns[trackno]:
-            data.append('pattern {}:'.format(patt_no))
+            data.append(shared.patt_start.format(patt_no))
             is_drumtrack = props['drumtrack']
             printables = collections.defaultdict(list)
             for key, note_events in patt_data.items():
                 seqnum = 0
                 events = []
                 if is_drumtrack:
-                    notestr = shared.get_inst_name(key - 35)
-                    empty, delim = '.', ''
+                    notestr = shared.get_inst_name(key + shared.note2drums)
+                    empty, delim = shared.empty_drums, ''
                     if notestr == '?':
                         unlettered.add('no letter yet for `{}`'.format(
-                            shared.gm_drums[pitch - 35][1]))
+                            shared.gm_drums[pitch + shared.note2drums][1]))
                     else:
                         key = shared.standard_printseq.index(notestr)
                 else:
-                    notestr = shared.get_note_name(key - 12)
-                    empty, delim = '...', ' '
-                factor = 32 # 64 if is_drumtrack else 32
+                    notestr = shared.get_note_name(key) #  - 12)
+                    empty, delim = shared.empty_note, ' '
+                factor = shared.tick_factor
                 for i in range(factor * (note_events[-1] // factor + 1)):
                     if i in note_events:
                         events.append(notestr)
@@ -343,7 +311,7 @@ class RppFile:
                 printlines = sorted(pattern_lines)
                 if not is_drumtrack:
                     printlines = reversed(printlines)
-                data.extend([12 * ' ' + y for x, y in printlines])
+                data.extend([shared.line_start + y for x, y in printlines])
                 data.append('')
         for line in data:
             print(line, file=stream)

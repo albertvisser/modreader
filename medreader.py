@@ -4,10 +4,12 @@ import shared
 
 def get_note_name(inp):
     """translate note number to note name
+
+    adapted octave to be comparable to other types
     """
     if inp == 0:
-        return '...'
-    return shared.get_note_name(inp)
+        return shared.empty_note
+    return shared.get_note_name(inp + 3 * shared.octave_length)
 
 def mmd0_decode(data):
     """
@@ -203,20 +205,12 @@ class MedModule:
 
     def remove_duplicate_drum_patterns(self, samplist):
 
-        ## print(self.samplenames)
-        ## print(samplist)
         inst2samp = {x: y[0] + 1 for x, y in enumerate(self.samplenames)}
         samp2inst = {y[0] + 1: x for x,y in enumerate(self.samplenames)}
-        ## print(inst2samp)
-        ## print(samp2inst)
-
         single_instrument_samples = [inst2samp[x - 1] for x, y in samplist
             if len(y) == 1]
-        ## print(single_instrument_samples)
         lookup = {y: inst2samp[x - 1] for x, y in samplist if len(y) == 1}
-        ## print(lookup)
         samp2lett = {inst2samp[x - 1]: y for x, y in samplist}
-        ## print(samp2lett)
         drumpatterns = collections.defaultdict(lambda: collections.defaultdict(list))
         pattlengths = self.pattern_lengths
 
@@ -247,7 +241,6 @@ class MedModule:
         for pattnum in drumpatterns:
             drumpatterns[pattnum]['len'] = pattlengths[pattnum] + 1
 
-        ## print(drumpatterns)
         renumber = {} # collections.defaultdict(dict)
         pattern_list = []
         for pattnum, patt in drumpatterns.items():
@@ -258,9 +251,6 @@ class MedModule:
                 new_pattnum = len(pattern_list)
             renumber[pattnum] = new_pattnum
         self.pattern_data['drums'] = pattern_list
-        ## print(pattern_list)
-        ## print(renumber)
-        ## print(self.playseq)
         for ix, seq in enumerate(self.playseq):
             if ix >= self.songlen:
                 break
@@ -268,18 +258,15 @@ class MedModule:
                 self.playseqs['drums'].append(renumber[seq])
             else:
                 self.playseqs['drums'].append(-1)
-        ## print(self.playseqs['drums'])
 
 
     def print_general_data(self, _out, sample_list=None):
         if sample_list is None: sample_list = []
         drumsamples = [x for x, y in sample_list]
-        printable = "Details of module {}".format(self.filename)
-        data = [printable, "=" * len(printable), '',
-            'description: ' + self.songdesc, '']
+        data = shared.build_header("module", self.filename, self.songdesc)
 
+        instruments = []
         for sampseq, sample in enumerate(self.samplenames):
-            ## print('-- ', sampseq, sample, ' --')
             sample_name = sample[1]
             sample_string = ''
             sample_number = sampseq + 1 # start met 1 ipv 0
@@ -287,49 +274,22 @@ class MedModule:
                 for sampnum, sampstr in sample_list:
                     if sampnum == sample_number:
                         sample_string = sampstr.join((' (', ')'))
-            data.append(("sample {:>2}: {}".format(sample_number,
-                sample_name + sample_string)))
+            instruments.append((sample_number, sample_name + sample_string))
             if sample_number not in drumsamples:
                 self.remove_duplicate_patterns(sampseq)
         if drumsamples:
             self.remove_duplicate_drum_patterns(sample_list)
+        data.extend(shared.build_inst_list(instruments))
+        data.extend(shared.build_patt_header())
 
-        data.extend(['', 'patterns:', ''])
-        printable = print_start = '          '
-        count = 8
-        eind = []
-        for sample, playseq in self.playseqs.items():
-            if sample == 'drums':
-                als_laatste = True
-                text = '    drums'
-                eind.extend([text, ''])
-            else:
-                als_laatste = False
-                text = '    {}:'.format(self.samplenames[sample - 1][1])
-                data.extend([text, ''])
-            for ix, x in enumerate(playseq):
-                if x == -1:
-                    printable += ' . '
-                else:
-                    try:
-                        y = self.pattern_desc[x]
-                    except KeyError:
-                        y = ''
-                    printable += '{:>2} '.format(x, y) # start pattern display met 1
-                if (ix + 1) % count == 0:
-                    if als_laatste:
-                        eind.append(printable)
-                    else:
-                        data.append(printable)
-                    printable = print_start
-            if als_laatste:
-                eind.append(printable)
-            else:
-                data.extend([printable, ''])
-            printable = print_start
-        data.extend(eind)
+        for sample_number, sample_name in instruments:
+            if sample_number not in drumsamples:
+                data.extend(shared.build_patt_list(sample_number, sample_name,
+                    self.playseqs[sample_number]))
+        data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
+
         for text in data:
-            print(text, file=_out)
+            print(text.rstrip(), file=_out)
 
 
     def print_drums(self, sample_list, printseq, _out):
@@ -342,19 +302,15 @@ class MedModule:
         """
         ## for pattnum, pattern in self._all_drum_events.items():
         for pattnum, pattern in enumerate(self.pattern_data['drums']):
-            print('pattern', pattnum + 1, file=_out)
+            print(shared.patt_start.format(pattnum + 1), file=_out)
             pattlen = self.pattern_lengths[pattnum] + 1
-            ## for x, y in pattern.items():
-                ## print(x, y, file=_out)
-                ## #for a, b in y.items():
-                ## #    print(a, ':', b, file=_out)
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
                     ## events = [x[0] for x in events]
-                    print('           ', end='', file=_out)
+                    print(shared.line_start, end='', file=_out)
                     for i in range(pattlen):
-                        printable = inst if i in events else '.'
+                        printable = inst if i in events else shared.empty_drums
                         print(printable, end='', file=_out)
                     print('', file=_out)
             print('', file=_out)
@@ -367,16 +323,18 @@ class MedModule:
         """
         ## for pattnum, pattern in self._all_inst_events.items():
         for pattnum, pattern in enumerate(self.pattern_data[sample]):
-            print('pattern', pattnum + 1, file=_out)
-            ## for x, y in pattern.items():
-                ## print(x,':', y, file=_out)
+            print(shared.patt_start.format(pattnum + 1), file=_out)
             pattlen = self.pattern_lengths[pattnum] + 1
             for note in reversed(sorted([x for x in pattern])):
-                print('           ', end='', file=_out)
+                print(shared.line_start, end='', file=_out)
                 events = pattern[note]
 
                 for tick in range(pattlen):
-                    printable = shared.get_note_name(note -1) if tick in events else '...'
+                    if tick in events:
+                        corr = note + 3 * shared.octave_length - 1 # comparability
+                        printable = shared.get_note_name(corr)
+                    else:
+                        printable = shared.empty_note
                     print(printable, end= ' ', file=_out)
                 print('', file=_out)
             print('', file=_out)

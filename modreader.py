@@ -7,6 +7,7 @@ import pprint
 import shared
 
 # de noten kloppen, maar de octaven worden in MilkyTracker 2 hoger weergegeven
+# om gelijk te trekken met andere weergaven daarom maar aangepast
 noteval = dict(zip([
     int(x) for x in """\
 1712 1616 1524 1440 1356 1280 1208 1140 1076 1016  960  906
@@ -15,13 +16,21 @@ noteval = dict(zip([
  214  202  190  180  170  160  151  143  135  127  120  113
  107  101   95   90   85   80   75   71   67   63   60   56
 """.split()], [
+    ## x.replace('-', ' ') for x in """\
+ ## C-0  C#0  D-0  D#0  E-0  F-0  F#0  G-0  G#0  A-0  A#0  B-0
+ ## C-1  C#1  D-1  D#1  E-1  F-1  F#1  G-1  G#1  A-1  A#1  B-1
+ ## C-2  C#2  D-2  D#2  E-2  F-2  F#2  G-2  G#2  A-2  A#2  B-2
+ ## C-3  C#3  D-3  D#3  E-3  F-3  F#3  G-3  G#3  A-3  A#3  B-3
+ ## C-4  C#4  D-4  D#4  E-4  F-4  F#4  G-4  G#4  A-4  A#4  B-4
+## """.split()]))
     x.replace('-', ' ') for x in """\
- C-0  C#0  D-0  D#0  E-0  F-0  F#0  G-0  G#0  A-0  A#0  B-0
- C-1  C#1  D-1  D#1  E-1  F-1  F#1  G-1  G#1  A-1  A#1  B-1
  C-2  C#2  D-2  D#2  E-2  F-2  F#2  G-2  G#2  A-2  A#2  B-2
  C-3  C#3  D-3  D#3  E-3  F-3  F#3  G-3  G#3  A-3  A#3  B-3
  C-4  C#4  D-4  D#4  E-4  F-4  F#4  G-4  G#4  A-4  A#4  B-4
+ C-5  C#5  D-5  D#5  E-5  F-5  F#5  G-5  G#5  A-5  A#5  B-5
+ C-6  C#6  D-6  D#6  E-6  F-6  F#6  G-6  G#6  A-6  A#6  B-6
 """.split()]))
+maxpattlen = 64
 
 def getstring(data):
     result = ''
@@ -92,7 +101,7 @@ class ModFile:
 
             for x in range(self.highpatt + 1):
                 pattern = []
-                for y in range(64):
+                for y in range(maxpattlen):
                     track = []
                     for z in range(channelcount):
                         track.append([x for x in _in.read(4)])
@@ -118,7 +127,7 @@ class ModFile:
                 if last_event:
                     break
             if not last_event:
-                leng = 64
+                leng = maxpattlen
                 for samp in sample_list:
                     data[samp - 1][pattnum].insert(0, leng)
         self._pattern_data = data
@@ -189,45 +198,34 @@ class ModFile:
 
     def print_general_data(self, _out, sample_list=None):
         if sample_list is None: sample_list = []
-        drumsamples = [x - 1 for x, y in sample_list]
-        printable = "Details of module {}".format(self.filename)
-        data = [printable, "=" * len(printable), '',
-            'description: ' + self.name.rstrip(chr(0)), '']
-        for sample_number, sample_data in self.samples.items():
+        drumsamples = [x for x, y in sample_list]
+        data = shared.build_header("module", self.filename, self.name.rstrip(chr(0)))
+
+        instruments = []
+        for sampseq, sample_data in self.samples.items():
             sample_name = sample_data[0]
             sample_string = ''
+            sample_number = sampseq + 1
             if sample_list:
                 for sampnum, sampstr in sample_list:
-                    if sampnum == sample_number + 1:
+                    if sampnum == sample_number:
                         sample_string = sampstr.join((' (', ')'))
-            data.append(("sample {:>2}: {}".format(sample_number + 1,
-                sample_name + sample_string)))
+            instruments.append((sample_number, sample_name + sample_string))
             if sample_number not in drumsamples:
-                self.remove_duplicate_patterns(sample_number)
+                self.remove_duplicate_patterns(sampseq)
 
         self.remove_duplicate_drum_patterns(sample_list)
+        data.extend(shared.build_inst_list(instruments))
+        data.extend(shared.build_patt_header())
 
-        data.extend(['', 'patterns:', ''])
-        printable = print_start = '          '
-        count = 8
-        for sample, playseq in self.playseqs.items():
-            if sample == 'drums':
-                text = '    drums'
-            else:
-                text = '    {}:'.format(self.samples[sample][0])
-            data.extend([text, ''])
-            for ix, x in enumerate(playseq):
-                if x == -1:
-                    printable += ' . '
-                else:
-                    printable += '{:>2} '.format(x) # start pattern display met 1
-                if (ix + 1) % count == 0:
-                    data.append(printable)
-                    printable = print_start
-            data.extend([printable, ''])
-            printable = print_start
+        for sample_number, sample_name in instruments:
+            if sample_number not in drumsamples:
+                data.extend(shared.build_patt_list(sample_number, sample_name,
+                    self.playseqs[sample_number - 1]))
+        data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
+
         for text in data:
-            print(text, file=_out)
+            print(text.rstrip(), file=_out)
 
     def print_drums(self, sample_list, printseq, _out):
         """collect the drum sample events and print them together
@@ -239,14 +237,14 @@ class ModFile:
         """
         for pattnum, pattern in enumerate(self.pattern_data['drums']):
             pattlen = pattern['len']
-            print('pattern', pattnum + 1, file=_out)
+            print(shared.patt_start.format(pattnum + 1), file=_out)
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
                     events = [x[0] for x in events]
-                    print('           ', end='', file=_out)
+                    print(shared.line_start, end='', file=_out)
                     for i in range(pattlen):
-                        printable = inst if i in events else '.'
+                        printable = inst if i in events else shared.empty_drums
                         print(printable, end='', file=_out)
                     print('', file=_out)
 
@@ -258,17 +256,17 @@ class ModFile:
         """
         for pattnum, pattern in enumerate(self.pattern_data[sample - 1]):
             pattlen = pattern.pop(0)
-            print('pattern', pattnum + 1, file=_out) #  display starting with 1
+            print(shared.patt_start.format(pattnum + 1), file=_out) #  display starting with 1
             notes = collections.defaultdict(list)
             for timing, note in pattern:
                 notes[note].append(timing)
             for notestr in reversed(sorted([x for x in notes],
                     key=shared.getnotenum)):
-                print('           ', end='', file=_out)
+                print(shared.line_start, end='', file=_out)
                 events = notes[notestr]
 
                 for tick in range(pattlen):
-                    printable = notestr if tick in events else '...'
+                    printable = notestr if tick in events else shared.empty_note
                     print(printable, end= ' ', file=_out)
                 print('', file=_out)
             print('', file=_out)

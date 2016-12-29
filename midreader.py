@@ -5,7 +5,6 @@ import csv
 import collections
 import pprint
 import shared
-PER_LINE = 32
 
 class MidiFile:
 
@@ -47,8 +46,8 @@ class MidiFile:
                 lambda: collections.defaultdict(list))
             for timing, pitch in track:
                 notestart = timing // duration
-                pattern_no = notestart // 32
-                pattern_start = pattern_no * 32
+                pattern_no = notestart // shared.tick_factor
+                pattern_start = pattern_no * shared.tick_factor
                 pattern_data[pattern_no][pitch].append(notestart - pattern_start)
             patterns = []
             pattern_list = []
@@ -64,50 +63,41 @@ class MidiFile:
 
 
     def print_general_data(self, stream=sys.stdout):
-        printable = "Details of module {}".format(self.filename)
-        data = [printable, "=" * len(printable), '', 'instruments:']
-        for x, y in self.instruments.items():
-            data.append('        {:>2} {} (chn. {})'.format(x, y[0], y[1]))
+        data = shared.build_header("module", self.filename)
+        data.extend(shared.build_inst_list([(x, '{} (chn. {})'.format(y[0], y[1]))
+            for x, y in self.instruments.items()]))
         if self.weirdness:
             data.extend([''] + [x for x in self.weirdness])
-        data.extend(['', 'Patterns per instrument:'])
+        data.extend(shared.build_patt_header())
         for track, patterns in self.pattern_lists.items():
-            data.extend([
-                '',
-                '    {:>2} {}'.format(track, self.instruments[track][0]),
-                ''])
+            patt_list = []
             i = 0
-            printable = ['        ']
             for seq, num in patterns:
                 while seq > i:
-                    printable.append(' .')
+                    patt_list.append(-1)
                     i += 1
-                    if i % 8 == 0:
-                        data.append(' '.join(printable))
-                        printable = ['        ']
                 if seq == i:
-                    printable.append('{:>2}'.format(num + 1))
+                    patt_list.append(num + 1)
                     i += 1
-                    if i % 8 == 0:
-                        data.append(' '.join(printable))
-                        printable = ['        ']
-            data.append(' '.join(printable))
+            data.extend(shared.build_patt_list(track, self.instruments[track][0],
+                patt_list))
+
         for item in data:
-            print(item, file=stream)
+            print(item.rstrip(), file=stream)
 
 
     def print_instrument(self, trackno, stream=sys.stdout):
-        is_drumtrack = self.instruments[trackno][1] == 10
-        empty = '.' if is_drumtrack else '...'
+        is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
+        empty = shared.empty_drums if is_drumtrack else shared.empty_note
         for number, pattern in self.patterns[trackno]:
-            print('pattern {:>2}:'.format(number + 1), file=stream)
+            print(shared.patt_start.format(number + 1), file=stream)
             unlettered = set()
             printables = []
             for pitch in pattern:
                 if not pattern[pitch]:
                     continue
                 if is_drumtrack:
-                    notestr = shared.get_inst_name(pitch - 35)
+                    notestr = shared.get_inst_name(pitch + shared.note2drums)
                     if notestr == '?':
                         unlettered.add('no letter yet for `{}`'.format(
                             shared.gm_drums[pitch - 35][1]))
@@ -116,7 +106,7 @@ class MidiFile:
                 else:
                     notestr = shared.get_note_name(pitch)
                     key = pitch
-                printstr = ['          ']
+                printstr = [shared.line_start]
                 index = 0
                 for event in pattern[pitch]:
                     while index < event:
@@ -124,10 +114,14 @@ class MidiFile:
                         index += 1
                     printstr.append(notestr)
                     index += 1
-                while index < PER_LINE:
+                while index < shared.per_line:
                     printstr.append(empty)
                     index += 1
-                sep = '' if is_drumtrack else ' '
+                if is_drumtrack:
+                    sep = ''
+                else:
+                    sep = ' '
+                    printstr[0] = printstr[0][:-1]
                 printables.append((key, sep.join(printstr)))
             printables.sort()
             if not is_drumtrack: printables.reverse()
