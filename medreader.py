@@ -55,6 +55,7 @@ class MedModule:
     def __init__(self, filename):
         self.filename = filename
         self.pattern_data = {}
+        self.pattern_lengths = []
         self.playseqs = collections.defaultdict(list)
         self.read()
         if not self._pattern_data:
@@ -63,15 +64,17 @@ class MedModule:
             lambda: collections.defaultdict(list)))
         sampledata_found = collections.defaultdict(lambda: False)
         for pattnum, pattern in enumerate(self._pattern_data):
+            length, pattern = pattern
+            self.pattern_lengths.append(length)
             events = []
             last_event = False
             for ix, track in enumerate(pattern):
                 for note, samp in track:
                     if note:
                         sampledata_found[samp] = True
+                        self._all_events[pattnum][samp]['len'] = length
                         self._all_events[pattnum][samp][note].append(ix)
         samples_to_keep = []
-        ## print(sampledata_found)
         for ix, samp in enumerate(self.samplenames):
             if sampledata_found[ix + 1]:
                 samples_to_keep.append((ix, samp))
@@ -130,17 +133,15 @@ class MedModule:
                     instname += ' (unnamed)'
                 self.samplenames.append(instname)
 
-            self.pattern_lengths = []
+            pattern_lengths_and_data = []
             self._pattern_data = []
             self.pattern_desc = {}
-            ## for i in range(blockcount):
             for address in blockstart_list:
-                ## _med.seek(blockstart_list[i])
                 _med.seek(address)
                 this_pattern = []
                 if self.modtype == 'MMD0':
                     tracks, lines = struct.unpack('BB', _med.read(2))
-                    self.pattern_lengths.append(lines)
+                    this_pattern.append(lines)
                     for x in range(lines + 1):
                         linedata = []
                         for y in range(tracks):
@@ -150,7 +151,6 @@ class MedModule:
 
                 elif self.modtype == 'MMD1':
                     tracks, lines, address = struct.unpack('>HHL', _med.read(8))
-                    self.pattern_lengths.append(lines)
                     for x in range(lines + 1):
                         linedata = []
                         for y in range(tracks):
@@ -161,12 +161,32 @@ class MedModule:
                     if address:
                         _med.seek(address)
                         data = struct.unpack('>3L', _med.read(12))
-                        address, len = data[1:]
+                        address, length = data[1:]
                         _med.seek(address)
-                        pattern_text = read_string(_med, len)
+                        pattern_text = read_string(_med, length)
                         self.pattern_desc[i] = pattern_text
 
-                self._pattern_data.append(this_pattern)
+                pattern_lengths_and_data.append((lines + 1, this_pattern))
+
+            ## with open('/tmp/01-pattern-lengths-and-data-med', 'w') as _o:
+                ## for pattnum, data in enumerate(pattern_lengths_and_data):
+                    ## pattlen, pattdata = data
+                    ## print('pattern', pattnum, 'lengte:', pattlen, file=_o)
+                    ## for event in pattdata: print('   ', event, file=_o)
+
+            # now to split up the patterns to be no longer that 32
+            new_patterns = []
+            ophogen = 0
+            for pattlen, patt in pattern_lengths_and_data:
+                if pattlen > shared.per_line:
+                    old_pattlen = shared.per_line
+                    old_patt = patt[:old_pattlen]
+                    new_patterns.append((old_pattlen, old_patt))
+                    pattlen -= old_pattlen
+                    patt = patt[old_pattlen:]
+                new_patterns.append((pattlen, patt))
+
+            self._pattern_data = new_patterns
             self.pattern_count = blockcount
 
 
@@ -193,8 +213,6 @@ class MedModule:
                     new_pattnum = len(pattern_list)
                 renumber[pattnum] = new_pattnum
         self.pattern_data[sampnum + 1] = pattern_list
-        ## print(pattern_list)
-        ## print(renumber)
         for ix, seq in enumerate(self.playseq):
             if ix >= self.songlen:
                 break
@@ -212,13 +230,14 @@ class MedModule:
         lookup = {y: inst2samp[x - 1] for x, y in samplist if len(y) == 1}
         samp2lett = {inst2samp[x - 1]: y for x, y in samplist}
         drumpatterns = collections.defaultdict(lambda: collections.defaultdict(list))
-        pattlengths = self.pattern_lengths
+        self.pattlengths = collections.defaultdict(dict)
 
         for pattnum, data in self._all_events.items():
             for sampnum, patt in data.items():
                 if sampnum not in single_instrument_samples:
                     continue
                 samplett = samp2lett[sampnum]
+                drumpatterns[pattnum]['len'].append((samplett, patt.pop('len')))
                 # theoretisch kan dit data voor meer toonhoogten bevatten
                 # maar voor mijn spullen kan ik uitgaan van één
                 drumpatterns[pattnum][samplett] = [x for x in patt.values()][0]
@@ -233,17 +252,21 @@ class MedModule:
                     continue
 
                 for letter in instletters:
+                    drumpatterns[pattnum]['len'].append((letter, patt.pop('len')))
                     # theoretisch kan dit data voor meer toonhoogten bevatten
                     # maar voor mijn spullen kan ik uitgaan van één
                     drumpatterns[pattnum][letter].extend([x for x in patt.values()][0])
                     drumpatterns[pattnum][letter].sort()
 
-        for pattnum in drumpatterns:
-            drumpatterns[pattnum]['len'] = pattlengths[pattnum] + 1
-
-        renumber = {} # collections.defaultdict(dict)
+        renumber = {}
         pattern_list = []
         for pattnum, patt in drumpatterns.items():
+            lengths = [x[1] for x in patt['len']]
+            if max(lengths) != lengths[0] or min(lengths) != lengths[0]:
+                print('ongelijke lengtes in pattern {}: {}'.format(pattnum,
+                    self.pattlengths[pattnum]))
+            patt['len'] = lengths[0]
+
             try:
                 new_pattnum = pattern_list.index(patt) + 1
             except ValueError:
@@ -300,14 +323,12 @@ class MedModule:
         printseq indicates the sequence to print these top to bottom e.g. 'hsb'
         stream is a file-like object to write the output to
         """
-        ## for pattnum, pattern in self._all_drum_events.items():
         for pattnum, pattern in enumerate(self.pattern_data['drums']):
             print(shared.patt_start.format(pattnum + 1), file=_out)
-            pattlen = self.pattern_lengths[pattnum] + 1
+            pattlen = pattern.pop('len')
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
-                    ## events = [x[0] for x in events]
                     print(shared.line_start, end='', file=_out)
                     for i in range(pattlen):
                         printable = inst if i in events else shared.empty_drums
@@ -321,10 +342,9 @@ class MedModule:
         sample is the number of the sample to print data for
         stream is a file-like object to write the output to
         """
-        ## for pattnum, pattern in self._all_inst_events.items():
         for pattnum, pattern in enumerate(self.pattern_data[sample]):
             print(shared.patt_start.format(pattnum + 1), file=_out)
-            pattlen = self.pattern_lengths[pattnum] + 1
+            pattlen = pattern.pop('len')
             for note in reversed(sorted([x for x in pattern])):
                 print(shared.line_start, end='', file=_out)
                 events = pattern[note]

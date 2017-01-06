@@ -109,6 +109,7 @@ class ModFile:
                 self.patterns[x] = pattern
 
         data = collections.defaultdict(lambda: collections.defaultdict(list))
+        lentab = []
         for pattnum, pattern in self.patterns.items():
             sample_list = set()
             last_event = False
@@ -130,7 +131,41 @@ class ModFile:
                 leng = maxpattlen
                 for samp in sample_list:
                     data[samp - 1][pattnum].insert(0, leng)
-        self._pattern_data = data
+            lentab.append((pattnum, leng))
+
+        self._pattern_data = collections.defaultdict(lambda: collections.defaultdict(list))
+        ophogen = 0
+        samples = [x for x in data.keys()]
+        for pattnum, pattlen in lentab:
+            split = pattlen > 32
+            if split:
+                newlen = pattlen - 32
+            for s in samples:
+                origpatt = data[s][pattnum][1:]
+                if split:
+                    splitix = 0
+                    for ix, event in enumerate(origpatt):
+                        if event[0] >= 32:
+                            splitix = ix
+                            break
+                    if not splitix:
+                        if origpatt:
+                            origpatt.insert(0, 32)
+                            self._pattern_data[s][pattnum + ophogen] = origpatt
+                    else:
+                        oldpatt, newpatt = origpatt[:splitix], origpatt[splitix:]
+                        if oldpatt:
+                            oldpatt.insert(0, 32)
+                            self._pattern_data[s][pattnum + ophogen] = oldpatt
+                        if newpatt:
+                            newpatt = [(x - 32, y) for x, y in origpatt[splitix:]]
+                            newpatt.insert(0, newlen)
+                            self._pattern_data[s][pattnum + ophogen + 1] = newpatt
+                else:
+                    if data[s][pattnum]:
+                        self._pattern_data[s][pattnum + ophogen] = data[s][pattnum]
+            if split:
+                ophogen += 1
 
     def remove_duplicate_patterns(self, sampnum):
         renumber = collections.defaultdict(dict)
@@ -247,6 +282,7 @@ class ModFile:
                         printable = inst if i in events else shared.empty_drums
                         print(printable, end='', file=_out)
                     print('', file=_out)
+            print('', file=_out)
 
     def print_instrument(self, sample, _out):
         """print the events for an instrument as a piano roll
