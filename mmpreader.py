@@ -70,10 +70,11 @@ class MMPFile:
                 bbtrackdata[name].append(data)
         drumtracks = collections.defaultdict(list)
         for name, data in bbtrackdata.items():
-            for num, track, len in enumerate(data[0]):
-                trackdata = track[1]
-                if trackdata:
-                    drumtracks[num].append((name, trackdata))
+            for num, track, len in data[0]: # enumerate(data[0]):
+                ## trackdata = track[1]
+                ## if trackdata:
+                if track:
+                    drumtracks[num].append((name, track, len)) # trackdata))
         self.bbpatterndata = drumtracks
         # getting the events involved (is dividing by 384 ok?)
         tracks = root.findall('./song/trackcontainer/track[@type="1"]')
@@ -102,7 +103,7 @@ class MMPFile:
         pattlist = track.findall('pattern')
         for pattnum, patt in enumerate(pattlist):
             pattname = patt.get('name')
-            pattstart = int(patt.get('pos')) // shared.time_unit
+            pattstart = int(patt.get('pos')) // (shared.time_unit // 2 )
             pattlen = int(patt.get('len')) // shared.timing_unit
             notes = []
             notelist = patt.findall('note')
@@ -131,7 +132,7 @@ class MMPFile:
                         y = lett
                         break
                 if y: y = y.join(('(', ')'))
-                bb_inst.append((i + 1, y))
+                bb_inst.append((i + 1, ' '.join((x, y))))
             data.extend(shared.build_inst_list(bb_inst, "Instruments "
                 "in Beat/Bassline:"))
             data.extend(shared.build_patt_header("Patterns in Beat/Bassline:"))
@@ -153,10 +154,12 @@ class MMPFile:
 #    hier moet ik nog in voorzien dat er niet alleen drums maar ook bas oid meedoet
 #    theoretisch, want zelf gebruik ik dat eigenlijk niet?
     def print_beat_bassline(self, sample_list, printseq, _out=sys.stdout):
-        for pattnum, pattern, pattlen in self.bbpatterndata.items():
+        with open('/tmp/mmp_bbpatterndata', 'w') as _o:
+            pprint.pprint(self.bbpatterndata, stream=_o)
+        for pattnum, pattern in self.bbpatterndata.items():
             print(shared.patt_start.format(pattnum + 1), file=_out)
             events = collections.defaultdict(list)
-            for pattname, pattevents in pattern:
+            for pattname, pattevents, pattlen in pattern:
                 for name, letter in sample_list:
                     if name == pattname:
                         pattlet = letter
@@ -164,7 +167,7 @@ class MMPFile:
                     for letter in pattlet:
                         events[letter].append(ev)
             for letter in printseq:
-                printable = [shared_line_start]
+                printable = [shared.line_start]
                 out = False
                 for x in range(pattlen):
                     if x in events[letter]:

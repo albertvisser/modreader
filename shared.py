@@ -68,10 +68,13 @@ def build_inst_list(item_list, first_line=''):
 def build_patt_header(text=''):
     if text == '':
         text = 'Patterns per instrument:'
-    return [text, '', '']
+    return [text, '']
 
 def build_patt_list(seq, text, item_list):
-    result = ["    {:>2} {}".format(seq, text), '']
+    if text:
+        result = ["    {:>2} {}".format(seq, text), '']
+    else:
+        result = []
     printable = []
     line_start = "         "
     for ix, item in enumerate(item_list):
