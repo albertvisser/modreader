@@ -1,25 +1,15 @@
 # shared stuff
+import os.path
+import configparser
+options = configparser.ConfigParser()
+options.optionxform = lambda x: x
+optionsfile = os.path.join(os.path.dirname(__file__), 'options.ini')
+options.read(optionsfile)
+standard_printseq = options['general']['printseq']
+gm_drums = [(y, x) for x, y in options['gm_drums'].items()]
+samp2other = {x:y for x, y in options['samp2lett'].items()}
 
 notenames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-gm_drums = [
-    ('b', 'Acoustic Bass Drum'), ('b', 'Bass Drum 1'), ('?', 'Side Stick'),
-    ('s', 'Acoustic Snare'), ('?', 'Hand Clap'), ('s', 'Electric Snare'),
-    ('F', 'Low Floor Tom'), ('h', 'Closed Hi Hat'), ('f', 'High Floor Tom'),
-    ('H', 'Pedal Hi-Hat'), ('g', 'Low Tom'), ('o', 'Open Hi-Hat'),
-    ('G', 'Low-Mid Tom'), ('d', 'Hi Mid Tom'), ('1', 'Crash Cymbal 1'),
-    ('d', 'High Tom'), ('r', 'Ride Cymbal 1'), ('C', 'Chinese Cymbal'),
-    ('?', 'Ride Bell'), ('?', 'Tambourine'), ('S', 'Splash Cymbal'),
-    ('?', 'Cowbell'), ('2', 'Crash Cymbal 2'), ('?', 'Vibraslap'),
-    ('R', 'Ride Cymbal 2'), ('?', 'Hi Bongo'), ('?', 'Low Bongo'),
-    ('?', 'Mute Hi Conga'), ('?', 'Open Hi Conga'), ('?', 'Low Conga'),
-    ('?', 'High Timbale'), ('?', 'Low Timbale'), ('?', 'High Agogo'),
-    ('?', 'Low Agogo'), ('?', 'Cabasa'), ('?', 'Maracas'),
-    ('?', 'Short Whistle'), ('?', 'Long Whistle '), ('?', 'Short Guiro'),
-    ('?', 'Long Guiro'), ('?', 'Claves'), ('?', 'Hi Wood Block'),
-    ('?', 'Low Wood Block'), ('?', 'Mute Cuica'), ('?', 'Open Cuica'),
-    ('?', 'Mute Triangle'), ('?', 'Open Triangle'),
-    ]
-standard_printseq = 'SCcRrOoHhGgDdsFfbB'
 per_line = 32
 octave_length = 12
 drum_channel = 10 # standard drums channel

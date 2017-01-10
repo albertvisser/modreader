@@ -25,6 +25,7 @@ import medreader
 import mmpreader
 import rppreader
 mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
+from shared import samp2other
 
 class MainFrame(qtw.QWidget):
 
@@ -299,7 +300,13 @@ class MainFrame(qtw.QWidget):
             try:
                 letter = self.usedtohave[test]
             except KeyError:
-                letter = ''.join([x.strip()[0].lower() for x in test.split('+')])
+                samps = [x.strip().lower() for x in test.split('+')]
+                letter = ''
+                for x in samps:
+                    try:
+                        letter += samp2other[x]
+                    except KeyError:
+                        letter += x[0]
             item.setText('{} ({})'.format(test, letter))
             self.mark_samples.addItem(item)
             self.mark_samples.setCurrentItem(item)
@@ -437,7 +444,7 @@ class MainFrame(qtw.QWidget):
         with open(mru_filename, 'w') as _out:
             for name in self._mru_items:
                 _out.write(name + '\n')
-        pass # built in delay to avoid segfault
+        ## pass # built in delay to avoid segfault
         self.close()
 
 
