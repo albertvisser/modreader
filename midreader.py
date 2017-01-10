@@ -32,7 +32,9 @@ class MidiFile:
                 if track == -1 and event == 'Header':
                     self.resolution = int(data[2])
                 elif event == 'Title_t':
-                    self.instruments[track] = [data[0].strip(' "'), '']
+                    test = data[0].strip(' "')
+                    if test:
+                        self.instruments[track] = [test, '']
                 elif event == 'Note_on_c':
                     if not self.instruments[track][1]:
                         self.instruments[track][1] = int(data[0]) + 1
@@ -60,6 +62,14 @@ class MidiFile:
                 pattern_list.append((pattern_no, pattern_id))
             self.patterns[trackno] = [(x, y) for x, y in enumerate(patterns)]
             self.pattern_lists[trackno] = pattern_list
+        to_pop = []
+        for key, val in self.instruments.items():
+            if not val[1]: to_pop.append(key)
+        for key in to_pop:
+            self.instruments.pop(key)
+        ## with open('/tmp/mid-patterns', 'w') as _o:
+            ## pprint.pprint(self.instruments, stream=_o)
+            ## pprint.pprint(self.patterns, stream=_o)
 
 
     def print_general_data(self, stream=sys.stdout):
@@ -89,6 +99,7 @@ class MidiFile:
     def print_instrument(self, trackno, stream=sys.stdout):
         is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
         empty = shared.empty_drums if is_drumtrack else shared.empty_note
+        print(trackno)
         for number, pattern in self.patterns[trackno]:
             print(shared.patt_start.format(number + 1), file=stream)
             unlettered = set()
