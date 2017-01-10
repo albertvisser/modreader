@@ -257,7 +257,8 @@ class ModFile:
             if sample_number not in drumsamples:
                 data.extend(shared.build_patt_list(sample_number, sample_name,
                     self.playseqs[sample_number - 1]))
-        data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
+        if 'drums' in self.playseq:
+            data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
 
         for text in data:
             print(text.rstrip(), file=_out)
@@ -301,9 +302,10 @@ class ModFile:
                 print(shared.line_start, end='', file=_out)
                 events = notes[notestr]
 
+                printable = []
                 for tick in range(pattlen):
-                    printable = notestr if tick in events else shared.empty_note
-                    print(printable, end= ' ', file=_out)
-                print('', file=_out)
+                    next = notestr if tick in events else shared.empty_note
+                    printable.append(next)
+                print(' '.join(printable), file=_out)
             print('', file=_out)
 

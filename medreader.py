@@ -178,7 +178,7 @@ class MedModule:
             new_patterns = []
             ophogen = 0
             for pattlen, patt in pattern_lengths_and_data:
-                if pattlen > shared.per_line:
+                while pattlen > shared.per_line:
                     old_pattlen = shared.per_line
                     old_patt = patt[:old_pattlen]
                     new_patterns.append((old_pattlen, old_patt))
@@ -237,10 +237,11 @@ class MedModule:
                 if sampnum not in single_instrument_samples:
                     continue
                 samplett = samp2lett[sampnum]
-                drumpatterns[pattnum]['len'].append((samplett, patt.pop('len')))
+                drumpatterns[pattnum]['len'].append((samplett, patt['len']))
                 # theoretisch kan dit data voor meer toonhoogten bevatten
                 # maar voor mijn spullen kan ik uitgaan van één
-                drumpatterns[pattnum][samplett] = [x for x in patt.values()][0]
+                drumpatterns[pattnum][samplett] = [y for x, y in patt.items()
+                    if x != 'len'][0]
 
         for pattnum, data in self._all_events.items():
             for sampnum, patt in data.items():
@@ -252,10 +253,11 @@ class MedModule:
                     continue
 
                 for letter in instletters:
-                    drumpatterns[pattnum]['len'].append((letter, patt.pop('len')))
+                    drumpatterns[pattnum]['len'].append((letter, patt['len']))
                     # theoretisch kan dit data voor meer toonhoogten bevatten
                     # maar voor mijn spullen kan ik uitgaan van één
-                    drumpatterns[pattnum][letter].extend([x for x in patt.values()][0])
+                    drumpatterns[pattnum][letter].extend([y for x, y in patt.items()
+                        if x != 'len'][0])
                     drumpatterns[pattnum][letter].sort()
 
         renumber = {}
@@ -309,7 +311,8 @@ class MedModule:
             if sample_number not in drumsamples:
                 data.extend(shared.build_patt_list(sample_number, sample_name,
                     self.playseqs[sample_number]))
-        data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
+        if 'drums' in self.playseq:
+            data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
 
         for text in data:
             print(text.rstrip(), file=_out)
@@ -349,13 +352,14 @@ class MedModule:
                 print(shared.line_start, end='', file=_out)
                 events = pattern[note]
 
+                printable = []
                 for tick in range(pattlen):
                     if tick in events:
                         corr = note + 3 * shared.octave_length - 1 # comparability
-                        printable = shared.get_note_name(corr)
+                        next = shared.get_note_name(corr)
                     else:
-                        printable = shared.empty_note
-                    print(printable, end= ' ', file=_out)
-                print('', file=_out)
+                        next = shared.empty_note
+                    printable.append(next)
+                print(' '.join(printable), file=_out)
             print('', file=_out)
 
