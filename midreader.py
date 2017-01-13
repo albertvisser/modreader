@@ -113,7 +113,11 @@ class MidiFile:
                         unlettered.add('no letter yet for `{}`'.format(
                             shared.gm_drums[pitch - 35][1]))
                     else:
-                        key = shared.standard_printseq.index(notestr)
+                        try:
+                            key = shared.standard_printseq.index(notestr)
+                        except ValueError:
+                            unlettered.add('{} not in standard printseq {}'.format(
+                                notestr, shared.standard_printseq))
                 else:
                     notestr = shared.get_note_name(pitch)
                     key = pitch
@@ -140,4 +144,5 @@ class MidiFile:
                 print(line, file=stream)
             print('', file=stream)
         for x in unlettered: print(x, file=stream)
+
 

@@ -217,8 +217,12 @@ class RppFile:
                 oldpattnum, oldpattstart = item
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][ix]
                 if oldpattnum2 != oldpattnum: # should never happen
-                    raise ValueError('self.patterns[{0}][{1}] is niet gelijk aan '
-                        'self.pattern_list[{0}][{1}]'.format(track, ix))
+                    with open('/tmp/rpp_patterns', 'w') as _o:
+                        pprint.pprint(self.patterns, stream=_o)
+                    with open('/tmp/rpp_pattern_list', 'w') as _o:
+                        pprint.pprint(self.pattern_list, stream=_o)
+                    raise ValueError('mismatch on track {} pattern {}, data '
+                        'dumped to /tmp'.format(track, ix))
                 high_event = 0
                 data_started = False
                 while True:
