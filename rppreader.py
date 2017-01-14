@@ -213,16 +213,20 @@ class RppFile:
             new_patterns_temp = []
             new_pattern_list_temp = []
             newpattnum = 0
+            pattix = 0
             for ix, item in enumerate(pattern_start_list):
                 oldpattnum, oldpattstart = item
-                oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][ix]
-                if oldpattnum2 != oldpattnum: # should never happen
+                oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][pattix]
+                if oldpattnum2 > oldpattnum:
+                    continue # no data for pattern (just event c0 after event c0)
+                elif oldpattnum2 != oldpattnum: # should never happen
                     with open('/tmp/rpp_patterns', 'w') as _o:
                         pprint.pprint(self.patterns, stream=_o)
                     with open('/tmp/rpp_pattern_list', 'w') as _o:
                         pprint.pprint(self.pattern_list, stream=_o)
                     raise ValueError('mismatch on track {} pattern {}, data '
                         'dumped to /tmp'.format(track, ix))
+                pattix += 1
                 high_event = 0
                 data_started = False
                 while True:
