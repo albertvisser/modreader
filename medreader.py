@@ -47,7 +47,11 @@ def read_pointer(stream):
 
 def read_string(stream, length):
     text = struct.unpack('{}s'.format(length), stream.read(length))
-    return str(text[0], encoding='utf-8').rstrip('\x00')
+    try:
+        result = str(text[0], encoding='utf-8')
+    except UnicodeDecodeError:
+        result = str(text[0], encoding='latin-1')
+    return result.rstrip('\x00')
 
 
 class MedModule:
