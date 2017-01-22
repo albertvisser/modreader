@@ -144,5 +144,6 @@ class MidiFile:
                 print(line, file=stream)
             print('', file=stream)
         for x in unlettered: print(x, file=stream)
+        return unlettered
 
 

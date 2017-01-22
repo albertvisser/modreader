@@ -531,7 +531,9 @@ class MainFrame(qtw.QWidget):
             self.loaded.print_general_data(_out)
         for trackno, data in self.loaded.instruments.items():
             with open(self.get_instrument_filename(data[0]), 'w') as _out:
-                self.loaded.print_instrument(trackno, _out)
+                unlettered = self.loaded.print_instrument(trackno, _out)
+            if unlettered:
+                qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
     def process_medfile(self):
         drums = []
@@ -580,7 +582,9 @@ class MainFrame(qtw.QWidget):
 
         for trackname in [x for x, y in sample_map if y == '*']:
             with open(self.get_instrument_filename(trackname), "w") as _out:
-                self.loaded.print_drumtrack(trackname, _out=_out)
+                unlettered = self.loaded.print_drumtrack(trackname, _out=_out)
+            if unlettered:
+                qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
         for trackname in inst_samples:
             with open(self.get_instrument_filename(trackname), "w") as _out:
@@ -593,7 +597,10 @@ class MainFrame(qtw.QWidget):
             self.loaded.print_general_data(_out)
         for trackno, data in self.loaded.instruments.items():
             with open(self.get_instrument_filename(data), 'w') as _out:
-                self.loaded.print_instrument(trackno, _out)
+                unlettered = self.loaded.print_instrument(trackno, _out)
+            if unlettered:
+                qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
+
 
 app = qtw.QApplication(sys.argv)
 win = MainFrame()

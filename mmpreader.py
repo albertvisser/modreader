@@ -145,7 +145,7 @@ class MMPFile:
             data.extend(shared.build_patt_list(i + 1, x, self.patternlists[x]))
 
         for line in data:
-            print(line, file=_out)
+            print(line.rstrip(), file=_out)
 
 
 
@@ -207,6 +207,7 @@ class MMPFile:
                     print(''.join(printable), file=_out)
             print('', file=_out)
         for x in unlettered: print(x, file=_out)
+        return unlettered
 
 #- er worden aparte instrumenten gebruikt (to be implemented)
     def print_drums(self, sample_list, printseq, _out=sys.stdout):

@@ -194,11 +194,12 @@ class RppFile:
             self.in_track = False
 
     def read(self):
-        """read the file into interbal structures
+        """read the file into internal structures
         using the preceding methods/callbacks"""
         self.in_track = self.in_pattern = self.in_source = False
         self.instrument_number = 0
         with open(self.filename) as _in:
+            ## count = 0
             for line in _in:
                 line = line.strip()
                 try:
@@ -207,6 +208,10 @@ class RppFile:
                     linetype = line
                 if linetype in self.procs:
                     self.procs[linetype](data)
+                ## count += 1
+                ## print(count)
+                ## if count > 3400:
+                    ## break
         new_patterns = collections.defaultdict(list)
         new_pattern_list = collections.defaultdict(list)
         for track, pattern_start_list in self.pattern_list.items():
@@ -217,15 +222,16 @@ class RppFile:
             for ix, item in enumerate(pattern_start_list):
                 oldpattnum, oldpattstart = item
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][pattix]
-                if oldpattnum2 > oldpattnum:
+                if oldpattnum2 > oldpattnum or not oldpattdata:
                     continue # no data for pattern (just event c0 after event c0)
                 elif oldpattnum2 != oldpattnum: # should never happen
+                ## if oldpattnum2 != oldpattnum: # should never happen
                     with open('/tmp/rpp_patterns', 'w') as _o:
                         pprint.pprint(self.patterns, stream=_o)
                     with open('/tmp/rpp_pattern_list', 'w') as _o:
                         pprint.pprint(self.pattern_list, stream=_o)
-                    raise ValueError('mismatch on track {} pattern {}, data '
-                        'dumped to /tmp'.format(track, ix))
+                    raise ValueError('mismatch on track {} pattern {} met pattern {}, data '
+                        'dumped to /tmp'.format(track, oldpattnum, oldpattnum2))
                 pattix += 1
                 high_event = 0
                 data_started = False
@@ -281,7 +287,7 @@ class RppFile:
             data.extend(shared.build_patt_list(item, self.instruments[item],
                 patt_list))
         for line in data:
-            print(line, file=stream)
+            print(line.rstrip(), file=stream)
 
     def print_instrument(self, trackno, stream=sys.stdout):
         data = []
@@ -298,7 +304,7 @@ class RppFile:
                     empty, delim = shared.empty_drums, ''
                     if notestr == '?':
                         unlettered.add('no letter yet for `{}`'.format(
-                            shared.gm_drums[pitch + shared.note2drums][1]))
+                            shared.gm_drums[key + shared.note2drums][1]))
                     else:
                         key = shared.standard_printseq.index(notestr)
                 else:
@@ -323,6 +329,6 @@ class RppFile:
                 data.append('')
         for line in data:
             print(line, file=stream)
-        for x in unlettered: print(x, file=stream)
+        return unlettered
 
 
