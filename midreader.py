@@ -11,6 +11,9 @@ class MidiFile:
     def __init__(self, filename):
         self.filename = filename
         self.weirdness = []
+        self.instruments = {}
+        self.patterns = {}
+        self.pattern_lists = collections.defaultdict(list)
         self.read()
 
 
@@ -18,10 +21,7 @@ class MidiFile:
         outfile = os.path.basename(self.filename).replace('.mid', '.csv')
         outfile = os.path.join('/tmp', outfile)
         result = subprocess.run(['midicsv', self.filename, outfile])
-        self.instruments = {}
-        trackdata = collections.defaultdict(list)
-        self.patterns = {}
-        self.pattern_lists = collections.defaultdict(list)
+        trackdata = collections.defaultdict(set)
         with open(outfile) as _in:
             csvdata = csv.reader(_in)
             for line in csvdata:
@@ -41,12 +41,12 @@ class MidiFile:
                     elif int(data[0]) + 1 != self.instruments[track][1]:
                         self.weirdness.append('in-track channel change on track '
                             '{} at time {}'.format(track, tick))
-                    trackdata[track].append((tick, int(data[1])))
+                    trackdata[track].add((tick, int(data[1])))
         duration = self.resolution // 4
         for trackno, track in trackdata.items():
             pattern_data = collections.defaultdict(
                 lambda: collections.defaultdict(list))
-            for timing, pitch in track:
+            for timing, pitch in sorted(track):
                 notestart = timing // duration
                 pattern_no = notestart // shared.tick_factor
                 pattern_start = pattern_no * shared.tick_factor
@@ -99,7 +99,6 @@ class MidiFile:
     def print_instrument(self, trackno, stream=sys.stdout):
         is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
         empty = shared.empty_drums if is_drumtrack else shared.empty_note
-        print(trackno)
         for number, pattern in self.patterns[trackno]:
             print(shared.patt_start.format(number + 1), file=stream)
             unlettered = set()
