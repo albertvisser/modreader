@@ -9,5 +9,6 @@ syntax: glob
 *.htm*
 pylint*
 data/*
+docs/*
 mru_files
 defaults.py
