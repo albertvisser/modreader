@@ -529,8 +529,18 @@ class MainFrame(qtw.QWidget):
         # (instead of several tracks with one drum instrument each)
         with open(self.get_general_filename(), "w") as _out:
             self.loaded.print_general_data(_out)
+        test, dubbel = set(), set()
+        # kijken of er dubbele namen zijn
         for trackno, data in self.loaded.instruments.items():
-            with open(self.get_instrument_filename(data[0]), 'w') as _out:
+            if data[0] in test:
+                dubbel.add(data[0])
+            else:
+                test.add(data[0])
+        for trackno, data in self.loaded.instruments.items():
+            name = data[0]
+            if name in dubbel:
+                name += '-' + str(trackno)
+            with open(self.get_instrument_filename(name), 'w') as _out:
                 unlettered = self.loaded.print_instrument(trackno, _out)
             if unlettered:
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
