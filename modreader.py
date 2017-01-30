@@ -149,7 +149,12 @@ class ModFile:
                             splitix = ix
                             break
                     if not splitix:
+                        print('splitix is 0')
                         if origpatt:
+                            print('we have origpatt')
+                            if origpatt[0][0] >= 32: # wrschl is deze test niet nodig
+                                print('start with timing > 32')
+                                origpatt = [(x - 32, y) for x, y in origpatt]
                             origpatt.insert(0, 32)
                             self._pattern_data[s][pattnum + ophogen] = origpatt
                     else:
