@@ -268,6 +268,9 @@ class RppFile:
                 new_pattern_list[track].append((num_, start))
         self.patterns = new_patterns
         self.pattern_list = new_pattern_list
+        self.instruments = {x: y for x, y in self.instruments.items() if x in
+            self.pattern_list}
+
 
     def print_general_data(self, stream=sys.stdout):
         data = shared.build_header("project", self.filename)
