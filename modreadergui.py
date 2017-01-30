@@ -469,12 +469,17 @@ class MainFrame(qtw.QWidget):
 
         if not msg:
             ready = True
+            first = True
             for x in set(''.join([x for x in letters])):
                 if x not in printseq:
                     new = qtw.QListWidgetItem('dummy_sample ({})'.format(x))
                     self.mark_samples.addItem(new)
                     self.mark_samples.scrollToItem(new)
                     self.mark_samples.currentItem().setSelected(False)
+                    if first:
+                        first = False
+                        for item in self.mark_samples.selectedItems():
+                            item.setSelected(False)
                     new.setSelected(True)
                     self.remove_button.setEnabled(True)
                     ready = False
