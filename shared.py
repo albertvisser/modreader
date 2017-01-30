@@ -8,6 +8,10 @@ options.read(optionsfile)
 standard_printseq = options['general']['printseq']
 gm_drums = [(y, x) for x, y in options['gm_drums'].items()]
 samp2other = {x:y for x, y in options['samp2lett'].items()}
+known_files = options['general']['known_files'].split()
+basedir = os.path.expanduser(options['general']['basedir'])
+location = os.path.expanduser(options['general']['location'])
+
 
 notenames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
 per_line = 32

@@ -18,14 +18,13 @@ import datetime
 import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as gui
 import PyQt5.QtCore as core
-import defaults
+import shared
 import modreader
 import midreader
 import medreader
 import mmpreader
 import rppreader
 mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
-from shared import samp2other
 
 class MainFrame(qtw.QWidget):
 
@@ -121,9 +120,8 @@ class MainFrame(qtw.QWidget):
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
         hbox.addWidget(qtw.QLabel("Destination:", self))
-        self.basedir = defaults.basedir
 
-        self.dest = qtw.QLabel(self.basedir, self)
+        self.dest = qtw.QLabel(shared.basedir, self)
         hbox.addWidget(self.dest)
         dest_button = qtw.QPushButton("Ch&ange", self)
         dest_button.clicked.connect(self.change_dest)
@@ -188,9 +186,10 @@ class MainFrame(qtw.QWidget):
         """event handler voor 'zoek in directory'"""
         oupad = self.ask_modfile.currentText()
         if oupad == "":
-             oupad = defaults.location
+             oupad = shared.location
         name, pattern = qtw.QFileDialog.getOpenFileName(self, "Open File", oupad,
-            "Known files (*.mod *.mid *.med *mmpz *rpp)")
+            "Known files ({})".format(' '.join(['*.{}'.format(x)
+                for x in shared.known_files])))
         if name != "" and name != oupad:
             self.ask_modfile.setEditText(name)
             if name not in self._mru_items:
@@ -244,7 +243,7 @@ class MainFrame(qtw.QWidget):
         self.usedtohave = {}
         if self.drums:
             self.mark_samples.addItems(self.drums)
-        self.newdir = os.path.join(self.basedir,
+        self.newdir = os.path.join(shared.basedir,
             os.path.splitext(os.path.basename(pad))[0]).replace('_', ' ')
         self.dest.setText(self.newdir)
 
@@ -304,7 +303,7 @@ class MainFrame(qtw.QWidget):
                 letter = ''
                 for x in samps:
                     try:
-                        letter += samp2other[x]
+                        letter += shared.samp2other[x]
                     except KeyError:
                         letter += x[0]
             item.setText('{} ({})'.format(test, letter))
@@ -529,8 +528,8 @@ class MainFrame(qtw.QWidget):
         # (instead of several tracks with one drum instrument each)
         with open(self.get_general_filename(), "w") as _out:
             self.loaded.print_general_data(_out)
-        test, dubbel = set(), set()
         # kijken of er dubbele namen zijn
+        test, dubbel = set(), set()
         for trackno, data in self.loaded.instruments.items():
             if data[0] in test:
                 dubbel.add(data[0])
@@ -605,8 +604,18 @@ class MainFrame(qtw.QWidget):
         # where drums are in a separate track instead of one drum per track
         with open(self.get_general_filename(), 'w') as _out:
             self.loaded.print_general_data(_out)
+        # kijken of er dubbele namen zijn
+        test, dubbel = set(), set()
         for trackno, data in self.loaded.instruments.items():
-            with open(self.get_instrument_filename(data), 'w') as _out:
+            if data in test:
+                dubbel.add(data)
+            else:
+                test.add(data)
+        for trackno, data in self.loaded.instruments.items():
+            name = data
+            if name in dubbel:
+                name += '-' + str(trackno)
+            with open(self.get_instrument_filename(name), 'w') as _out:
                 unlettered = self.loaded.print_instrument(trackno, _out)
             if unlettered:
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
