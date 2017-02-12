@@ -41,7 +41,8 @@ class MidiFile:
                     elif int(data[0]) + 1 != self.instruments[track][1]:
                         self.weirdness.append('in-track channel change on track '
                             '{} at time {}'.format(track, tick))
-                    trackdata[track].add((tick, int(data[1])))
+                    if int(data[2]) != 0: # don't count velocity set to 0
+                        trackdata[track].add((tick, int(data[1])))
         duration = self.resolution // 4
         for trackno, track in trackdata.items():
             pattern_data = collections.defaultdict(
