@@ -171,6 +171,8 @@ class RppFile:
             if self.track_start: self.track_start = False
         if evtype != '9': # we're only interested in `note on`
             return
+        if velocity == '00': # set volume to zero == note off
+            return
         now = self.timing - self.pattern_start
         now = now // (self.pattern_props['resolution'] // 4)
         if 'drumtrack' not in self.pattern_props:
@@ -212,6 +214,10 @@ class RppFile:
                 ## print(count)
                 ## if count > 3400:
                     ## break
+        with open('/tmp/rpp_patterns', 'w') as _o:
+            pprint.pprint(self.pattern_list, stream=_o)
+            pprint.pprint(self.patterns, stream=_o)
+
         new_patterns = collections.defaultdict(list)
         new_pattern_list = collections.defaultdict(list)
         for track, pattern_start_list in self.pattern_list.items():
@@ -241,8 +247,11 @@ class RppFile:
                     newpattstart = oldpattstart + low_event
                     high_event += shared.per_line
                     for instval, instdata in oldpattdata.items():
+                        print(instval, instdata, file=_o)
+                        print(low_event, high_event, end=' ', file=_o)
                         new_instdata = [x - low_event for x in instdata
                             if low_event <= x < high_event]
+                        print(new_instdata, file=_o)
                         if new_instdata:
                             newpattdata[instval] = new_instdata
                     if newpattdata:
@@ -253,11 +262,13 @@ class RppFile:
                     new_pattern_list_temp.append((newpattnum, newpattstart))
                     new_patterns_temp.append((newpattnum, oldpattprops,
                         newpattdata))
+
             previous_patterns = []
             newnum = 0
             for ix, item in enumerate(new_patterns_temp):
                 patt, start = new_pattern_list_temp[ix]
                 num, props, data = item
+                if not data: continue
                 try:
                     num_ = previous_patterns.index(data) + 1
                 except ValueError:
