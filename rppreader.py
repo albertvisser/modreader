@@ -214,19 +214,26 @@ class RppFile:
                 ## print(count)
                 ## if count > 3400:
                     ## break
-        with open('/tmp/rpp_patterns', 'w') as _o:
-            pprint.pprint(self.pattern_list, stream=_o)
-            pprint.pprint(self.patterns, stream=_o)
+        ## with open('/tmp/rpp_patterns', 'w') as _o:
+            ## pprint.pprint(self.pattern_list, stream=_o)
+            ## pprint.pprint(self.patterns, stream=_o)
 
         new_patterns = collections.defaultdict(list)
         new_pattern_list = collections.defaultdict(list)
         for track, pattern_start_list in self.pattern_list.items():
             new_patterns_temp = []
-            new_pattern_list_temp = []
-            newpattnum = 0
+            new_pattern_list_temp = {}
             pattix = 0
+
+            ## with open('/tmp/rpp_patterns_inst_{}'.format(track), 'w') as _o:
+                ## pprint.pprint(self.patterns[track], stream=_o)
+            ## with open('/tmp/rpp_patterns_list_inst_{}'.format(track), 'w') as _o:
+                ## pprint.pprint(pattern_start_list, stream=_o)
+
             for ix, item in enumerate(pattern_start_list):
+
                 oldpattnum, oldpattstart = item
+                # is die pattix niet = oldpattnum - 1?
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][pattix]
                 if oldpattnum2 > oldpattnum or not oldpattdata:
                     continue # no data for pattern (just event c0 after event c0)
@@ -238,36 +245,42 @@ class RppFile:
                         pprint.pprint(self.pattern_list, stream=_o)
                     raise ValueError('mismatch on track {} pattern {} met pattern {}, data '
                         'dumped to /tmp'.format(track, oldpattnum, oldpattnum2))
-                pattix += 1
-                high_event = 0
-                data_started = False
-                while True:
-                    newpattdata = {}
-                    low_event = high_event
-                    newpattstart = oldpattstart + low_event
-                    high_event += shared.per_line
-                    for instval, instdata in oldpattdata.items():
-                        print(instval, instdata, file=_o)
-                        print(low_event, high_event, end=' ', file=_o)
-                        new_instdata = [x - low_event for x in instdata
+
+                newpattdata = collections.defaultdict(dict)
+                for pitch, events in oldpattdata.items():
+                    ## newpattnum = 0
+                    low_event = 0
+                    highest = max(events)
+                    high_event = low_event + shared.per_line
+
+                    while high_event < highest:
+                        new_events = [x - low_event for x in events
                             if low_event <= x < high_event]
-                        print(new_instdata, file=_o)
-                        if new_instdata:
-                            newpattdata[instval] = new_instdata
-                    if newpattdata:
-                        data_started = True
-                    elif data_started:
-                        break
-                    newpattnum += 1
-                    new_pattern_list_temp.append((newpattnum, newpattstart))
-                    new_patterns_temp.append((newpattnum, oldpattprops,
-                        newpattdata))
+                        if new_events:
+                            newpattstart = oldpattstart + low_event
+                            ## newpattnum += 1
+                            ## new_pattern_list_temp[newpattnum] = newpattstart
+                            newpattdata[newpattstart][pitch]= new_events
+                        low_event = high_event
+                        high_event += shared.per_line
+                    pattnum = 0
+                for pattstart, pattdata in sorted(newpattdata.items()):
+                    pattnum += 1
+                    new_pattern_list_temp[pattnum] = pattstart
+                    new_patterns_temp.append((pattnum, oldpattprops, pattdata))
+
+                pattix += 1
+
+            ## with open('/tmp/rpp_patterns_inst_{}_temp'.format(track), 'w') as _o:
+                ## pprint.pprint(new_patterns_temp, stream=_o)
+            ## with open('/tmp/rpp_patterns_list_inst_{}_temp'.format(track), 'w') as _o:
+                ## pprint.pprint(new_pattern_list_temp, stream=_o)
 
             previous_patterns = []
             newnum = 0
             for ix, item in enumerate(new_patterns_temp):
-                patt, start = new_pattern_list_temp[ix]
-                num, props, data = item
+                patt, props, data = item
+                start = new_pattern_list_temp[patt]
                 if not data: continue
                 try:
                     num_ = previous_patterns.index(data) + 1
@@ -277,6 +290,12 @@ class RppFile:
                     num_ = newnum
                     new_patterns[track].append((num_, props, data))
                 new_pattern_list[track].append((num_, start))
+
+            ## with open('/tmp/rpp_patterns_inst_{}_new'.format(track), 'w') as _o:
+                ## pprint.pprint(new_patterns[track], stream=_o)
+            ## with open('/tmp/rpp_patterns_list_inst_{}_new'.format(track), 'w') as _o:
+                ## pprint.pprint(new_pattern_list[track], stream=_o)
+
         self.patterns = new_patterns
         self.pattern_list = new_pattern_list
         self.instruments = {x: y for x, y in self.instruments.items() if x in
