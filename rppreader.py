@@ -250,10 +250,10 @@ class RppFile:
                 for pitch, events in oldpattdata.items():
                     ## newpattnum = 0
                     low_event = 0
-                    highest = max(events)
+                    highest = max(events) + shared.per_line
                     high_event = low_event + shared.per_line
 
-                    while high_event < highest:
+                    while high_event <= highest:
                         new_events = [x - low_event for x in events
                             if low_event <= x < high_event]
                         if new_events:
@@ -263,7 +263,7 @@ class RppFile:
                             newpattdata[newpattstart][pitch]= new_events
                         low_event = high_event
                         high_event += shared.per_line
-                    pattnum = 0
+                pattnum = 0
                 for pattstart, pattdata in sorted(newpattdata.items()):
                     pattnum += 1
                     new_pattern_list_temp[pattnum] = pattstart
@@ -271,6 +271,10 @@ class RppFile:
 
                 pattix += 1
 
+            ## with open('/tmp/rpp_patterns_inst_{}_tem_'.format(track), 'w') as _o:
+                ## pprint.pprint(oldpattdata, stream=_o)
+            ## with open('/tmp/rpp_patterns_inst_{}_tem0'.format(track), 'w') as _o:
+                ## pprint.pprint(newpattdata, stream=_o)
             ## with open('/tmp/rpp_patterns_inst_{}_temp'.format(track), 'w') as _o:
                 ## pprint.pprint(new_patterns_temp, stream=_o)
             ## with open('/tmp/rpp_patterns_list_inst_{}_temp'.format(track), 'w') as _o:
