@@ -24,6 +24,7 @@ import midreader
 import medreader
 import mmpreader
 import rppreader
+import xmreader
 mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
 
 class MainFrame(qtw.QWidget):
@@ -237,6 +238,10 @@ class MainFrame(qtw.QWidget):
                 if not self.loaded.patterns[x][0][1]['drumtrack']]
             self.drums = [y + ' (*)' for x, y in self.loaded.instruments.items()
                 if self.loaded.patterns[x][0][1]['drumtrack']]
+        elif self.ftype == 'xm':
+            self.loaded = xmreader.ExtModule(pad)
+            self.nondrums = [x[1] for x in self.loaded.samplenames]
+            self.drums = []
         self.list_samples.clear()
         self.list_samples.addItems(self.nondrums)
         self.mark_samples.clear()
@@ -426,6 +431,7 @@ class MainFrame(qtw.QWidget):
         go = {
             'mod': self.process_modfile,
             'mid': self.process_midifile,
+            'xm': self.process_xmfile,
             'med': self.process_medfile,
             'mmpz': self.process_mmpfile,
             'rpp': self.process_rppfile,
@@ -624,6 +630,35 @@ class MainFrame(qtw.QWidget):
                 unlettered = self.loaded.print_instrument(trackno, _out)
             if unlettered:
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
+
+    def process_xmfile(self):
+        drums = []
+        nondrums = []
+        samples, letters, printseq = self._assigned
+        samples_2 = [self.list_samples.item(x).text().split()[0] for x in range(
+            len(self.list_samples))]
+
+        for num, name in enumerate(self.loaded.samplenames):
+            name = name[1]
+            if name in samples:
+                ix = samples.index(name)
+                drums.append((num + 1, letters[ix]))
+            elif name in samples_2:
+                ix = samples_2.index(name)
+                nondrums.append((num + 1, name))
+
+        print(drums)
+        with open(self.get_general_filename(), "w") as out:
+            if drums:
+                self.loaded.print_general_data(out, drums)
+            else:
+                self.loaded.print_general_data(out)
+        if drums:
+            with open(self.get_drums_filename(), "w") as out:
+                self.loaded.print_drums(drums, printseq, out)
+        for number, name in nondrums:
+            with open(self.get_instrument_filename(name), "w") as out:
+                self.loaded.print_instrument(number, out)
 
 
 app = qtw.QApplication(sys.argv)

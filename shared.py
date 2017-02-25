@@ -14,7 +14,7 @@ location = os.path.expanduser(options['general']['location'])
 
 
 notenames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-per_line = 32
+max_lines = per_line = 32
 octave_length = 12
 drum_channel = 10 # standard drums channel
 note2drums = -35 # correction to calculate drum instrument for note
