@@ -135,6 +135,8 @@ class MainFrame(qtw.QWidget):
         create_button = qtw.QPushButton("&Create transcription files", self)
         create_button.clicked.connect(self.create_files)
         hbox.addWidget(create_button)
+        self.check_full = qtw.QCheckBox('Show as continual timeline', self)
+        hbox.addWidget(self.check_full)
         hbox.addStretch()
         vbox.addLayout(hbox)
 
@@ -529,10 +531,16 @@ class MainFrame(qtw.QWidget):
                 self.loaded.print_general_data(out)
         if drums:
             with open(self.get_drums_filename(), "w") as out:
-                self.loaded.print_drums(drums, printseq, out)
+                if self.check_full.isChecked:
+                    self.loaded.print_drums_full(drums, printseq, out)
+                else:
+                    self.loaded.print_drums(drums, printseq, out)
         for number, name in nondrums:
             with open(self.get_instrument_filename(name), "w") as out:
-                self.loaded.print_instrument(number, out)
+                if self.check_full.isChecked:
+                    self.loaded.print_instrument_full(number, out)
+                else:
+                    self.loaded.print_instrument(number, out)
 
     def process_midifile(self):
         # this is assuming I only have midi files that use a separate drum track
@@ -551,7 +559,10 @@ class MainFrame(qtw.QWidget):
             if name in dubbel:
                 name += '-' + str(trackno)
             with open(self.get_instrument_filename(name), 'w') as _out:
-                unlettered = self.loaded.print_instrument(trackno, _out)
+                if self.check_full.isChecked:
+                    unlettered = self.loaded.print_instrument_full(trackno, _out)
+                else:
+                    unlettered = self.loaded.print_instrument(trackno, _out)
             if unlettered:
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
@@ -578,10 +589,16 @@ class MainFrame(qtw.QWidget):
                 self.loaded.print_general_data(out)
         if drums:
             with open(self.get_drums_filename(), "w") as out:
-                self.loaded.print_drums(drums, printseq, out)
+                if self.check_full.isChecked:
+                    self.loaded.print_drums_full(drums, printseq, out)
+                else:
+                    self.loaded.print_drums(drums, printseq, out)
         for number, name in nondrums:
             with open(self.get_instrument_filename(name), "w") as out:
-                self.loaded.print_instrument(number, out)
+                if self.check_full.isChecked:
+                    self.loaded.print_instrument_full(number, out)
+                else:
+                    self.loaded.print_instrument(number, out)
 
     def process_mmpfile(self):
         drumsamples, letters, printseq = self._assigned

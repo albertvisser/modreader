@@ -75,6 +75,7 @@ class ModFile:
         self.filename = filename
         self.samples = {}
         self.patterns = {}
+        ## self.patterns = collections.defaultdict(lambda: collections.defaultdict(list))
         self.pattern_data = {}
         self.playseqs = collections.defaultdict(list)
         self.read()
@@ -104,6 +105,7 @@ class ModFile:
                 for y in range(maxpattlen):
                     track = []
                     for z in range(channelcount):
+                        ## self.patterns[x][y].append([x for x in _in.read(4)])
                         track.append([x for x in _in.read(4)])
                     pattern.append(track)
                 self.patterns[x] = pattern
@@ -133,6 +135,7 @@ class ModFile:
                     data[samp - 1][pattnum].insert(0, leng)
             lentab.append((pattnum, leng))
 
+        newlentab = {}
         self._pattern_data = collections.defaultdict(lambda: collections.defaultdict(list))
         ophogen = 0
         samples = [x for x in data.keys()]
@@ -143,17 +146,15 @@ class ModFile:
             for s in samples:
                 origpatt = data[s][pattnum][1:]
                 if split:
+                    newlentab[pattnum] = [32, newlen]
                     splitix = 0
                     for ix, event in enumerate(origpatt):
                         if event[0] >= 32:
                             splitix = ix
                             break
                     if not splitix:
-                        print('splitix is 0')
                         if origpatt:
-                            print('we have origpatt')
                             if origpatt[0][0] >= 32: # wrschl is deze test niet nodig
-                                print('start with timing > 32')
                                 origpatt = [(x - 32, y) for x, y in origpatt]
                             origpatt.insert(0, 32)
                             self._pattern_data[s][pattnum + ophogen] = origpatt
@@ -167,10 +168,14 @@ class ModFile:
                             newpatt.insert(0, newlen)
                             self._pattern_data[s][pattnum + ophogen + 1] = newpatt
                 else:
+                    newlentab[pattnum] = [pattlen]
                     if data[s][pattnum]:
                         self._pattern_data[s][pattnum + ophogen] = data[s][pattnum]
             if split:
                 ophogen += 1
+        self.lengths = []
+        for x in self.playseq:
+            self.lengths.extend(newlentab[x])
 
     def remove_duplicate_patterns(self, sampnum):
         renumber = collections.defaultdict(dict)
@@ -262,7 +267,7 @@ class ModFile:
             if sample_number not in drumsamples:
                 data.extend(shared.build_patt_list(sample_number, sample_name,
                     self.playseqs[sample_number - 1]))
-        if 'drums' in self.playseq:
+        if 'drums' in self.playseqs:
             data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
 
         for text in data:
@@ -314,3 +319,68 @@ class ModFile:
                 print(' '.join(printable), file=_out)
             print('', file=_out)
 
+
+    def print_drums_full(self, sample_list, printseq, _out):
+        """collect the drum sample events and print them together
+
+        sample_list is a list of pattern numbers associated with the instruments
+        to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
+        printseq indicates the sequence to print these top to bottom e.g. 'hsb'
+        stream is a file-like object to write the output to
+        """
+        all_drum_tracks = collections.defaultdict(list)
+        for pattseq, pattnum in enumerate(self.playseqs['drums']):
+            if pattnum == -1:
+                pattlen = self.lengths[pattseq]
+                for inst in printseq:
+                    all_drum_tracks[inst].extend([shared.empty_drums] * pattlen)
+                continue
+            pattern = self.pattern_data['drums'][pattnum - 1]
+            for inst in printseq:
+                events = [x[0] for x in pattern[inst]]
+                for i in range(pattern['len']):
+                    to_append = inst if i in events else shared.empty_drums
+                    all_drum_tracks[inst].append(to_append)
+        interval = 64
+        total_length = sum(self.lengths)
+        for eventindex in range(0, total_length, interval):
+            for inst in printseq:
+                line = ''.join(all_drum_tracks[inst][eventindex:eventindex+interval])
+                print(line, file=_out)
+            print('', file=_out)
+
+
+    def print_instrument_full(self, sample, _out):
+        """print the events for an instrument as a piano roll
+
+        sample is the number of the sample to print data for
+        stream is a file-like object to write the output to
+        """
+        all_note_tracks = collections.defaultdict(list)
+
+        pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
+        all_notes = set()
+        for pattnum, pattern in enumerate(self.pattern_data[sample - 1]):
+            for timing, note in pattern[1:]:
+                pattdict[pattnum][note].append(timing)
+                all_notes.add(note)
+        all_notes = [x for x in reversed(sorted(all_notes, key=shared.getnotenum))]
+        for pattseq, pattnum in enumerate(self.playseqs[sample - 1]):
+            pattlen = self.lengths[pattseq]
+            if pattnum == -1:
+                for note in all_notes:
+                    all_note_tracks[note].extend([shared.empty_note] * pattlen)
+                continue
+            pattern = pattdict[pattnum - 1]
+            for note in all_notes:
+                events = pattern[note]
+                for i in range(pattlen):
+                    to_append = note if i in events else shared.empty_note
+                    all_note_tracks[note].append(to_append)
+        interval = 32
+        total_length = sum(self.lengths)
+        for eventindex in range(0, total_length, interval):
+            for note in all_notes:
+                line = ' '.join(all_note_tracks[note][eventindex:eventindex+interval])
+                print(line, file=_out)
+            print('', file=_out)

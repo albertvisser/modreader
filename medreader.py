@@ -181,17 +181,24 @@ class MedModule:
             # now to split up the patterns to be no longer that 32
             new_patterns = []
             ophogen = 0
-            for pattlen, patt in pattern_lengths_and_data:
+            all_patt_lengths = collections.defaultdict(list)
+            for ix, pattdata in enumerate(pattern_lengths_and_data):
+                pattlen, patt = pattdata
                 while pattlen > shared.per_line:
                     old_pattlen = shared.per_line
                     old_patt = patt[:old_pattlen]
                     new_patterns.append((old_pattlen, old_patt))
                     pattlen -= old_pattlen
                     patt = patt[old_pattlen:]
+                    all_patt_lengths[ix].append(old_pattlen)
                 new_patterns.append((pattlen, patt))
+                all_patt_lengths[ix].append(pattlen)
 
-            self._pattern_data = new_patterns
-            self.pattern_count = blockcount
+        self._pattern_data = new_patterns
+        self.pattern_count = blockcount
+        self.all_pattern_lengths = []
+        for patt in self.playseq:
+            self.all_pattern_lengths.extend(all_patt_lengths[patt])
 
 
     def checks(self):
@@ -269,8 +276,7 @@ class MedModule:
         for pattnum, patt in drumpatterns.items():
             lengths = [x[1] for x in patt['len']]
             if max(lengths) != lengths[0] or min(lengths) != lengths[0]:
-                print('ongelijke lengtes in pattern {}: {}'.format(pattnum,
-                    self.pattlengths[pattnum]))
+                print('ongelijke lengtes in pattern {}: {}'.format(pattnum, lengths))
             patt['len'] = lengths[0]
 
             try:
@@ -315,7 +321,7 @@ class MedModule:
             if sample_number not in drumsamples:
                 data.extend(shared.build_patt_list(sample_number, sample_name,
                     self.playseqs[sample_number]))
-        if 'drums' in self.playseq:
+        if 'drums' in self.playseqs:
             data.extend(shared.build_patt_list('', 'Drums', self.playseqs['drums']))
 
         for text in data:
@@ -365,5 +371,67 @@ class MedModule:
                         next = shared.empty_note
                     printable.append(next)
                 print(' '.join(printable), file=_out)
+            print('', file=_out)
+
+    def print_drums_full(self, sample_list, printseq, _out):
+        all_drum_tracks = collections.defaultdict(list)
+        for pattseq, pattnum in enumerate(self.playseqs['drums']):
+            if pattnum == -1:
+                pattlen = self.all_pattern_lengths[pattseq]
+                for inst in printseq:
+                    all_drum_tracks[inst].extend([shared.empty_drums] * pattlen)
+                continue
+            pattern = self.pattern_data['drums'][pattnum - 1]
+
+            for inst in printseq:
+                events = [x for x in pattern[inst]]
+                for i in range(pattern['len']):
+                    to_append = inst if i in events else shared.empty_drums
+                    all_drum_tracks[inst].append(to_append)
+        interval = 64
+        total_length = sum(self.all_pattern_lengths)
+        for eventindex in range(0, total_length, interval):
+            for inst in printseq:
+                line = ''.join(all_drum_tracks[inst][eventindex:eventindex+interval])
+                print(line, file=_out)
+            print('', file=_out)
+
+    def print_instrument_full(self, sample, _out):
+        """print the events for an instrument as a piano roll
+
+        sample is the number of the sample to print data for
+        stream is a file-like object to write the output to
+        """
+        all_note_tracks = collections.defaultdict(list)
+
+        pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
+        all_notes = set()
+        for pattnum, pattern in enumerate(self.pattern_data[sample]):
+            all_notes.update(pattern.keys())
+        all_notes.discard('len')
+        all_notes = [x for x in reversed(sorted(all_notes))]
+
+        for pattseq, pattnum in enumerate(self.playseqs[sample]):
+            pattlen = self.all_pattern_lengths[pattseq]
+            if pattnum == -1:
+                for note in all_notes:
+                    all_note_tracks[note].extend([shared.empty_note] * pattlen)
+                continue
+            pattern = self.pattern_data[sample][pattnum - 1]
+            for note in all_notes:
+                events = pattern[note]
+                for i in range(pattlen):
+                    if i in events:
+                        to_append = shared.get_note_name(
+                            note + 3 * shared.octave_length - 1)
+                    else:
+                        to_append = shared.empty_note
+                    all_note_tracks[note].append(to_append)
+        interval = 32
+        total_length = sum(self.all_pattern_lengths)
+        for eventindex in range(0, total_length, interval):
+            for note in all_notes:
+                line = ' '.join(all_note_tracks[note][eventindex:eventindex+interval])
+                print(line, file=_out)
             print('', file=_out)
 

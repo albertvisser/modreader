@@ -16,7 +16,6 @@ class MidiFile:
         self.pattern_lists = collections.defaultdict(list)
         self.read()
 
-
     def read(self):
         outfile = os.path.basename(self.filename).replace('.mid', '.csv')
         outfile = os.path.join('/tmp', outfile)
@@ -71,6 +70,7 @@ class MidiFile:
         ## with open('/tmp/mid-patterns', 'w') as _o:
             ## pprint.pprint(self.instruments, stream=_o)
             ## pprint.pprint(self.patterns, stream=_o)
+
 
 
     def print_general_data(self, stream=sys.stdout):
@@ -146,4 +146,48 @@ class MidiFile:
         for x in unlettered: print(x, file=stream)
         return unlettered
 
+    def print_instrument_full(self, trackno, stream=sys.stdout):
+        is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
+        empty = shared.empty_drums if is_drumtrack else shared.empty_note
 
+        all_notes = set()
+        all_note_tracks = collections.defaultdict(list)
+        patterns = dict(self.patterns[trackno])
+        for _, pattdict in self.patterns[trackno]:
+            all_notes.update([x for x in pattdict.keys()])
+        for pattseq, pattnum in sorted(self.pattern_lists[trackno]):
+            ## print(trackno, pattnum, patterns[pattnum], file=stream)
+            ## for note in reversed(sorted(all_notes)):
+            for note in all_notes:
+                ## print(note, note in patterns[pattnum], file=stream)
+                ## continue
+                if note in patterns[pattnum]:
+                    events = patterns[pattnum][note]
+                    for tick in range(shared.per_line):
+                        if tick in events:
+                            if is_drumtrack:
+                                to_append = shared.get_inst_name(note +
+                                    shared.note2drums)
+                            else:
+                                to_append = shared.get_note_name(note)
+                        else:
+                            to_append = empty
+                        all_note_tracks[note].append(to_append)
+                else:
+                    all_note_tracks[note].extend([empty] * shared.per_line)
+
+        total_length = len(all_note_tracks[note])
+        if is_drumtrack:
+            interval = 64
+            sep = ''
+            notes_to_show = reversed(sorted(all_notes)) # niet de juiste volgorde
+        else:
+            interval = 32
+            sep = ' '
+            notes_to_show = reversed(sorted(all_notes))
+        for eventindex in range(0, total_length, interval):
+            for note in notes_to_show:
+                line = sep.join(all_note_tracks[note][eventindex:eventindex+interval])
+                print(line, file=stream)
+            print('', file=stream)
+        return
