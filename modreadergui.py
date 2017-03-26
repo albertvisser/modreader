@@ -27,6 +27,49 @@ import rppreader
 import xmreader
 mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
 
+
+class GetDestDialog(qtw.QDialog):
+    """dialog om een output filename te bepalen via tekst input of file selectie
+    """
+    def __init__(self, parent, text=""):
+        self.parent = parent
+        super().__init__(parent)
+        self.resize(300, -1)
+        sizer = qtw.QVBoxLayout()
+
+        hsizer = qtw.QHBoxLayout()
+        self.dest = qtw.QLineEdit(self)
+        ## self.dest.setMaximumWidth(500)
+        self.dest.setText(text)
+        hsizer.addWidget(self.dest)
+        self.button = qtw.QPushButton('Browse', self, clicked=self.browse)
+        self.button.setMaximumWidth(68)
+        hsizer.addWidget(self.button)
+        sizer.addLayout(hsizer)
+
+        buttonbox = qtw.QDialogButtonBox()
+        btn = buttonbox.addButton(qtw.QDialogButtonBox.Ok)
+        btn = buttonbox.addButton(qtw.QDialogButtonBox.Cancel)
+        buttonbox.accepted.connect(self.accept)
+        buttonbox.rejected.connect(self.reject)
+        hsizer = qtw.QHBoxLayout()
+        hsizer.addStretch()
+        hsizer.addWidget(buttonbox)
+        hsizer.addStretch()
+        sizer.addLayout(hsizer)
+        self.setLayout(sizer)
+
+    def browse(self):
+        startdir = self.dest.text() or os.getcwd()
+        path = qtw.QFileDialog.getSaveFileName(self, 'Kies een bestand', startdir)
+        if path[0]:
+            self.dest.setText(path[0])
+
+    def accept(self):
+        self.parent.newdir = self.dest.text()
+        super().accept()
+
+
 class MainFrame(qtw.QWidget):
 
     def __init__(self, parent=None):
@@ -49,6 +92,7 @@ class MainFrame(qtw.QWidget):
         self.setFocusPolicy(core.Qt.StrongFocus)
         self.create_widgets()
         self.create_actions()
+        self.newdir = shared.basedir
 
     def create_widgets(self):
 
@@ -400,13 +444,8 @@ class MainFrame(qtw.QWidget):
             self.mark_samples.takeItem(selindx)
 
     def change_dest(self):
-        name, ok = qtw.QInputDialog.getText(self, "Change Name", "",
-            text=self.newdir)
-        if ok:
-            self.newdir = name
+        if GetDestDialog(self, text=self.newdir).exec_() == qtw.QDialog.Accepted:
             self.dest.setText(self.newdir)
-
-        ## self.push()
 
     def push(self):
         qtw.QMessageBox.information(self, 'The ModReaderGui Adventure',
