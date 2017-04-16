@@ -36,13 +36,39 @@ class MMPFile:
         patternlists = collections.defaultdict(list)
         patterndata = collections.defaultdict(list)
         trackdata = collections.defaultdict(list)
+        trackdata_split = collections.defaultdict(list)
+        self.pattern_starts = collections.defaultdict(dict)
         for name in self.tracknames:
             for tracknum, track in enumerate(tracks):
                 if track.get('name') != name:
                     continue
-                data = self.read_track(tracknum, track)
+                data, data_split, pattstarts = self.read_track(tracknum, track)
                 trackdata[name].extend(data)
+                trackdata_split[name].extend(data_split)
+                self.pattern_starts[name][tracknum] = pattstarts
+
+        with open('/tmp/trackdata items.1', 'w') as _o:
+            for name, data in trackdata.items():
+                print(name, file=_o)
+                for item in data:
+                ## for item in sorted(data):
+                    print('   ', item, file=_o)
+            for name, data in trackdata_split.items():
+                print(name, file=_o)
+                for item in data:
+                ## for item in sorted(data):
+                    print('   ', item, file=_o)
+
         for name, data in trackdata.items():
+            for start, pattern, len in sorted(data):
+                patterndata[name].append((start, pattern, len))
+                patternlists[name].append(start)
+        self.patternlists = patternlists
+        self.patterndata = patterndata
+
+        patternlists = collections.defaultdict(list)
+        patterndata = collections.defaultdict(list)
+        for name, data in trackdata_split.items():
             pattnum = 0 # start with 1
             got_it = []
             for seq, pattern, len in sorted(data):
@@ -54,73 +80,87 @@ class MMPFile:
                     patterndata[name].append((pattern, len))
                     pattern_number = pattnum
                 patternlists[name].append(pattern_number)
-        self.patternlists = patternlists
-        self.patterndata = patterndata
+        self.patternlists_split = patternlists
+        self.patterndata_split = patterndata
 
         # beat/bassline tracks
-        # getting the instruments involved
+        # getting the instruments and patterns per instrument involved
         bbtracks = root.findall('.//bbtrack/trackcontainer/track')
         self.bbtracknames = [x.get("name") for x in bbtracks]
-        bbtrackdata = collections.defaultdict(list)
+        bbtrackdata = collections.defaultdict(dict)
+        bbtrackdata_split = collections.defaultdict(list)
+        bbtracklen = collections.defaultdict(list)
         for name in self.bbtracknames:
             for tracknum, track in enumerate(bbtracks):
                 if track.get('name') != name:
                     continue
-                data = self.read_track(tracknum, track, bbtrack=True)
-                bbtrackdata[name].append(data)
+                data, data_split, pattstarts = self.read_track(tracknum, track, bbtrack=True)
+                for pattnum, pattdata in enumerate(data):
+                    if pattdata[1]:
+                        bbtrackdata[pattnum + 1][name] = pattdata[1]
+                        bbtracklen[pattnum + 1].append(pattdata[2])
+                bbtrackdata_split[name].append(data_split)
+
+        self.bbpatterndata = {}
+        for pattnum, pattdata in bbtrackdata.items():
+            self.bbpatterndata[pattnum] = (pattdata, max(bbtracklen[pattnum]))
+
         drumtracks = collections.defaultdict(list)
-        for name, data in bbtrackdata.items():
+        for name, data in bbtrackdata_split.items():
             for num, track, len in data[0]: # enumerate(data[0]):
-                ## trackdata = track[1]
-                ## if trackdata:
                 if track:
                     drumtracks[num].append((name, track, len)) # trackdata))
-        self.bbpatterndata = drumtracks
-        # getting the events involved (is dividing by 384 ok?)
+        self.bbpatterndata_split = drumtracks
+
+        # getting the real pattern starts
         tracks = root.findall('./song/trackcontainer/track[@type="1"]')
         bbeventslist = []
         for tracknum, track in enumerate(tracks):
             for bbtco in track.findall('bbtco'):
-                pos = int(bbtco.get('pos')) // shared.time_unit
-                bbeventslist.append((pos, tracknum))
-        bbeventslist.sort()
-        bbevents = []
-        for pos, pattern in bbeventslist:
-            bbevents.append(pattern)
-        self.bbpatternlist = bbevents
-
-        with open('/tmp/{}-mmpdata'.format(project_name), 'w') as _out:
-            print("instruments:", self.tracknames, file=_out)
-            print("\npattern list:", self.patternlists, file=_out)
-            print("\npatterns:", self.patterndata, file=_out)
-            print("\nbb instruments:", self.bbtracknames, file=_out)
-            print("\nbb pattern list:", self.bbpatterndata, file=_out)
-            print("\nbb patterns:", self.bbpatternlist, file=_out)
+                pos = int(bbtco.get('pos')) # // shared.time_unit
+                bbeventslist.append((pos, tracknum + 1))
+        self.bbpatternlist = [(x, y) for x, y in sorted(bbeventslist)]
 
 
     def read_track(self, tracknum, track, bbtrack=False):
-        patterns = []
+        patterns, patterns_split, pattstarts = [], [], []
         pattlist = track.findall('pattern')
         for pattnum, patt in enumerate(pattlist):
             pattname = patt.get('name')
-            pattstart = int(patt.get('pos')) // (shared.time_unit // 2 )
-            pattlen = int(patt.get('len')) // shared.timing_unit
-            notes = []
+            pattstart = int(patt.get('pos'))
+            pattstart_split = pattstart // (shared.time_unit // 2 )
+            pattlen = int(patt.get('len'))
+            pattlen_split = pattlen // shared.timing_unit
+            notes, notes_split = [], []
             notelist = patt.findall('note')
             max = shared.per_line
             for note in notelist:
-                when = int(note.get('pos')) // shared.timing_unit
-                if when >= max:
-                    patterns.append((pattstart, notes, shared.per_line))
-                    pattlen -= shared.per_line
-                    pattstart += 1
+                when = int(note.get('pos'))
+                when_split = when // shared.timing_unit
+                if when_split >= max:
+                    patterns_split.append((pattstart, notes_split, shared.per_line))
+                    pattlen_split -= shared.per_line
+                    pattstart_split += 1
                     max += shared.per_line
-                    notes = []
-                notes.append((int(note.get('key')), when - max + shared.per_line))
+                    notes_split = []
+                notes_split.append((int(note.get('key')),
+                    when_split - max + shared.per_line))
+                notes.append((int(note.get('key')), when))
+            pattstarts.append(pattstart)
             patterns.append((pattstart, notes, pattlen))
-        return patterns
+            patterns_split.append((pattstart_split, notes_split, pattlen_split))
+        return patterns, patterns_split, pattstarts
 
-    def print_general_data(self, sample_list=None, _out=sys.stdout):
+
+    ## def get_pattern_starts(self):
+        ## result = collections.defaultdict(set)
+        ## for inst, instdata in self.pattern_starts.items():
+            ## for track, trackdata in instdata.items():
+                ## result[inst].update(set(trackdata))
+        ## return result
+
+
+    def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
         if sample_list is None: sample_list = []
         data = shared.build_header("project", self.filename)
         if self.bbtracknames:
@@ -133,16 +173,18 @@ class MMPFile:
                         break
                 if y: y = y.join(('(', ')'))
                 bb_inst.append((i + 1, ' '.join((x, y))))
-            data.extend(shared.build_inst_list(bb_inst, "Instruments "
-                "in Beat/Bassline:"))
-            data.extend(shared.build_patt_header("Patterns in Beat/Bassline:"))
-            data.extend(shared.build_patt_list('', '', self.bbpatternlist))
+            data.extend(shared.build_inst_list(bb_inst, "Beat/Bassline instruments:"))
+            if not full:
+                data.extend(shared.build_patt_header("Beat/Bassline patterns:"))
+                data.extend(shared.build_patt_list('', '', [x[1] for x in
+                    self.bbpatternlist]))
 
         data.extend(shared.build_inst_list([(i + 1, x) for i, x in enumerate(
             self.tracknames)]))
-        data.extend(shared.build_patt_header())
-        for i, x in enumerate(self.tracknames):
-            data.extend(shared.build_patt_list(i + 1, x, self.patternlists[x]))
+        if not full:
+            data.extend(shared.build_patt_header())
+            for i, x in enumerate(self.tracknames):
+                data.extend(shared.build_patt_list(i + 1, x, self.patternlists[x]))
 
         for line in data:
             print(line.rstrip(), file=_out)
@@ -156,7 +198,7 @@ class MMPFile:
     def print_beat_bassline(self, sample_list, printseq, _out=sys.stdout):
         with open('/tmp/mmp_bbpatterndata', 'w') as _o:
             pprint.pprint(self.bbpatterndata, stream=_o)
-        for pattnum, pattern in self.bbpatterndata.items():
+        for pattnum, pattern in self.bbpatterndata_split.items():
             print(shared.patt_start.format(pattnum + 1), file=_out)
             events = collections.defaultdict(list)
             for pattname, pattevents, pattlen in pattern:
@@ -183,7 +225,7 @@ class MMPFile:
 #- er word(t)(en) (een) midi drumtrack(s) gebruikt
     def print_drumtrack(self, trackname, _out=sys.stdout):
         unlettered = set()
-        for ix, pattdata in enumerate(self.patterndata[trackname]):
+        for ix, pattdata in enumerate(self.patterndata_split[trackname]):
             pattern, pattlen = pattdata
             print(shared.patt_start.format(ix + 1), file=_out)
             events = collections.defaultdict(list)
@@ -214,7 +256,7 @@ class MMPFile:
         pass
 
     def print_instrument(self, trackname, _out=sys.stdout):
-        for ix, pattdata in enumerate(self.patterndata[trackname]):
+        for ix, pattdata in enumerate(self.patterndata_split[trackname]):
             pattern, pattlen = pattdata
             print(shared.patt_start.format(ix + 1), file=_out)
             events = collections.defaultdict(list)
@@ -235,3 +277,110 @@ class MMPFile:
                 if out:
                     print(' '.join(printable), file=_out)
             print('', file=_out)
+
+    def print_instrument_full(self, trackname, options, _out=sys.stdout):
+        interval, clear_empty = options
+        is_drumtrack = trackname == 'drums'
+        if is_drumtrack:
+            interval *= 2
+            sep = ''
+            empty = shared.empty_drums
+        else:
+            sep = ' '
+            empty = shared.empty_note
+        empty_line = sep.join(interval * [empty])
+        # bepaal max. lengte
+        start, _, lng = self.patterndata[trackname][-1]
+        notes_data_dict = {}
+        all_notes = set()
+        for pattern in self.patterndata[trackname]:
+            all_notes.update([x[0] for x in pattern[1]])
+        ## total_length = int((start + len) / shared.timing_unit)
+        total_length = (start + lng) // shared.timing_unit
+        for note in all_notes:
+            notes_data_dict[note] = [empty] * total_length
+        for start, pattern, lng in self.patterndata[trackname]:
+            for note, timing in pattern:
+                ## idx = int((start + timing) / shared.timing_unit)
+                idx = (start + timing) // shared.timing_unit
+                if is_drumtrack:
+                    notes_data_dict[note][idx] = shared.get_inst_name(note +
+                        shared.octave_length + shared.note2drums)
+                else:
+                    notes_data_dict[note][idx] = shared.get_note_name(note +
+                        shared.octave_length)
+        ## print(notes_data_dict, file=_out)
+        if is_drumtrack:
+            notes_to_show = [x for x in sorted(all_notes,
+                key=lambda x: shared.standard_printseq.index(shared.get_inst_name(
+                x + shared.octave_length + shared.note2drums)))]
+        else:
+            notes_to_show = [x for x in reversed(sorted(all_notes))]
+        for eventindex in range(0, total_length, interval):
+            not_printed = True
+            for note in notes_to_show:
+                line = sep.join(notes_data_dict[note][eventindex:eventindex+interval])
+                if clear_empty and line == empty_line:
+                    pass
+                else:
+                    print(line, file=_out)
+                    not_printed = False
+            if not_printed:
+                print(empty_line, file=_out)
+            print('', file=_out)
+
+    def print_beat_bassline_full(self, sample_list, printseq, opts, _out=sys.stdout):
+        interval, clear_empty = opts
+        # bepaal max. lengte
+        # self.bbtracknames: list of instrument names
+        # self.bbpatterndata: dict of pattern_number mapped to :
+        #         dict of instrument names mapped to:
+        #             tuple of : list of tuples of note & timing, pa
+        # self.bbpatternlist: list of tuples: start, pattern_number
+        """
+        {pattern_start: [(sample_name, [(pitch, time), ...], length), ...], ...}
+        """
+        interval *= 2
+        sep = ''
+        notes_data_dict = {}
+        total_length = 0
+        if sample_list:
+            instdict = dict(sample_list)
+        for pattstart, pattnum in self.bbpatternlist:
+            pattdata, pattlen = self.bbpatterndata[pattnum]
+            total_length += pattlen
+        total_length //= shared.timing_unit #  (shared.tick_factor // 2)
+        ## for inst in self.bbtracknames:
+        for inst in printseq:
+            notes_data_dict[inst] = [shared.empty_drums] * total_length
+        ## print(notes_data_dict, file=_out)
+        ## return
+
+        for pattstart, pattnum in self.bbpatternlist:
+            pattdata, pattlen = self.bbpatterndata[pattnum]
+            pattlen //= shared.timing_unit #  (shared.tick_factor // 2)
+            for instname in self.bbtracknames:
+                if instname in pattdata:
+                    for _, timing in pattdata[instname]:
+                        note = instdict[instname]
+                        indx = (pattstart + timing) // shared.timing_unit
+                        notes_data_dict[note][indx] = note
+        ## print(notes_data_dict, file=_out)
+        ## return
+
+        empty_line = sep.join(interval * [shared.empty_drums])
+        for eventindex in range(0, total_length, interval):
+            not_printed = True
+            for note in printseq:
+                line = sep.join(notes_data_dict[note][eventindex:eventindex+interval])
+                if clear_empty and line == empty_line:
+                    pass
+                else:
+                    print(line, file=_out)
+                    not_printed = False
+            if not_printed:
+                print(empty, file=_out)
+            print('', file=_out)
+
+
+
