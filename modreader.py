@@ -77,8 +77,6 @@ class ModFile:
         self.samples = {}
         self.patterns = {}
         ## self.patterns = collections.defaultdict(lambda: collections.defaultdict(list))
-        self.pattern_data = {}
-        self.playseqs = collections.defaultdict(list)
         self.read()
 
     def read(self):
@@ -248,6 +246,8 @@ class ModFile:
         data = shared.build_header("module", self.filename, self.name.rstrip(chr(0)))
 
         instruments = []
+        self.pattern_data = {}
+        self.playseqs = collections.defaultdict(list)
         for sampseq, sample_data in self.samples.items():
             sample_name = sample_data[0]
             sample_string = ''
@@ -335,10 +335,7 @@ class ModFile:
         interval, clear_empty = opts
         interval *= 2
         empty = interval * '.'
-        print(self.lengths)
-        print(self.playseqs['drums'])
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
-            print(pattseq, pattnum)
             if pattnum == -1:
                 pattlen = self.lengths[pattseq]
                 for inst in printseq:
@@ -373,14 +370,18 @@ class ModFile:
         """
         all_note_tracks = collections.defaultdict(list)
         interval, clear_empty = opts
-        empty = ' '.join(interval * ['...'])
 
         pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
         all_notes = set()
         for pattnum, pattern in enumerate(self.pattern_data[sample - 1]):
-            for timing, note in pattern[1:]:
+            for item in pattern:
+                try:
+                    timing, note = item
+                except TypeError:
+                    continue
                 pattdict[pattnum][note].append(timing)
                 all_notes.add(note)
+
         all_notes = [x for x in reversed(sorted(all_notes, key=shared.getnotenum))]
         for pattseq, pattnum in enumerate(self.playseqs[sample - 1]):
             pattlen = self.lengths[pattseq]
@@ -395,6 +396,10 @@ class ModFile:
                     to_append = note if i in events else shared.empty_note
                     all_note_tracks[note].append(to_append)
         total_length = sum(self.lengths)
+
+        if interval == -1:
+            interval = total_length
+        empty = ' '.join(interval * ['...'])
         for eventindex in range(0, total_length, interval):
             not_printed = True
             for note in all_notes:

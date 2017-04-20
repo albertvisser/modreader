@@ -61,7 +61,6 @@ class MedModule:
         self.filename = filename
         self.pattern_data = {}
         self.pattern_lengths = []
-        self.playseqs = collections.defaultdict(list)
         self.read()
         if not self._pattern_data:
             raise ValueError('Empty module !?')
@@ -107,7 +106,7 @@ class MedModule:
             songinfo = struct.unpack('>504BHH256BHBbbb16bbb', _med.read(788))
             blockcount = songinfo[504]
             self.songlen = songinfo[505]
-            self.playseq = songinfo[506:506+256]
+            self.raw_playseq = songinfo[506:506+256]
             self.sample_count = songinfo[784]
 
             _med.seek(blockarray_start)
@@ -183,6 +182,8 @@ class MedModule:
             new_patterns = []
             ophogen = 0
             all_patt_lengths = collections.defaultdict(list)
+            newpattnums = collections.defaultdict(list)
+            pattnum = 0
             for ix, pattdata in enumerate(pattern_lengths_and_data):
                 pattlen, patt = pattdata
                 while pattlen > shared.per_line:
@@ -192,23 +193,31 @@ class MedModule:
                     pattlen -= old_pattlen
                     patt = patt[old_pattlen:]
                     all_patt_lengths[ix].append(old_pattlen)
+                    newpattnums[ix].append(pattnum)
+                    pattnum += 1
                 new_patterns.append((pattlen, patt))
                 all_patt_lengths[ix].append(pattlen)
+                newpattnums[ix].append(pattnum)
+                pattnum += 1
 
         self._pattern_data = new_patterns
         self.pattern_count = blockcount
-        self.all_pattern_lengths = []
-        for patt in self.playseq:
+        self.playseq, self.all_pattern_lengths = [], []
+        for patt in self.raw_playseq[:self.songlen]:
+            self.playseq.extend(newpattnums[patt])
             self.all_pattern_lengths.extend(all_patt_lengths[patt])
+        self.all_pattern_lengths = self.all_pattern_lengths[:self.songlen]
 
 
     def checks(self):
-        print('songlen == len of pattern list (this is ok)?', end=' ')
-        print(self.songlen == len(self.pattern_list))
-        print('number of samples == len of sample list?', end=' ')
-        print(self.sample_count == len(self.samplenames))
-        print('number of patterns == len of pattern data list?', end=' ')
-        print(self.pattern_count == len(self.pattern_data))
+        return (
+            'songlen = {}, len of raw pattern list = {}'.format(self.songlen,
+                len(self.raw_playseq)),
+            'number of samples = {}, len of sample list = {}'.format(
+                self.sample_count, len(self.samplenames)),
+            'number of patterns = {}, len of pattern data list = {}'.format(
+                self.pattern_count, len(self.pattern_data))
+            )
 
     def remove_duplicate_patterns(self, sampnum):
         renumber = {} # collections.defaultdict(dict)
@@ -297,11 +306,14 @@ class MedModule:
 
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
-        if sample_list is None: sample_list = []
-        drumsamples = [x for x, y in sample_list]
+        if sample_list is None:
+            drumsamples = sample_list = []
+        else:
+            drumsamples = [x for x, y in sample_list]
         data = shared.build_header("module", self.filename, self.songdesc)
 
         instruments = []
+        self.playseqs = collections.defaultdict(list)
         for sampseq, sample in enumerate(self.samplenames):
             sample_name = sample[1]
             sample_string = ''
@@ -341,7 +353,8 @@ class MedModule:
         """
         for pattnum, pattern in enumerate(self.pattern_data['drums']):
             print(shared.patt_start.format(pattnum + 1), file=_out)
-            pattlen = pattern.pop('len')
+            ## pattlen = pattern.pop('len')
+            pattlen = pattern['len']
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
@@ -360,8 +373,8 @@ class MedModule:
         """
         for pattnum, pattern in enumerate(self.pattern_data[sample]):
             print(shared.patt_start.format(pattnum + 1), file=_out)
-            pattlen = pattern.pop('len')
-            for note in reversed(sorted([x for x in pattern])):
+            pattlen = pattern['len']
+            for note in reversed(sorted([x for x in pattern if x != 'len'])):
                 print(shared.line_start, end='', file=_out)
                 events = pattern[note]
 
@@ -426,15 +439,15 @@ class MedModule:
         all_notes = [x for x in reversed(sorted(all_notes))]
 
         for pattseq, pattnum in enumerate(self.playseqs[sample]):
-            pattlen = self.all_pattern_lengths[pattseq]
             if pattnum == -1:
+                pattlen = self.all_pattern_lengths[pattseq]
                 for note in all_notes:
                     all_note_tracks[note].extend([shared.empty_note] * pattlen)
                 continue
             pattern = self.pattern_data[sample][pattnum - 1]
             for note in all_notes:
                 events = pattern[note]
-                for i in range(pattlen):
+                for i in range(pattern['len']):
                     if i in events:
                         to_append = shared.get_note_name(
                             note + 3 * shared.octave_length - 1)
