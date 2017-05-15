@@ -72,6 +72,8 @@ bij de drums zie ik dit:
 het lijkt erop dat die derde waarde niet alleen het type event aangeeft maar ook
 het channel number
 """
+empty_event = {True: shared.empty_drums, False: shared.empty_note}
+sep = {True: '', False: ' '}
 
 class RppFile:
 
@@ -321,15 +323,6 @@ class RppFile:
         if not full:
             data.extend(shared.build_patt_header())
             for item, value in self.pattern_list.items():
-                ## counter = 1
-                ## patt_list = []
-                ## for pattnum, pattstart in value:
-                    ## test = pattstart // 32
-                    ## while test > counter:
-                        ## patt_list.append(-1)
-                        ## counter += 1
-                    ## patt_list.append(pattnum)
-                    ## counter += 1
                 patt_list = [y for x, y in value]
                 data.extend(shared.build_patt_list(item, self.instruments[item],
                     patt_list))
@@ -348,7 +341,6 @@ class RppFile:
                 events = []
                 if is_drumtrack:
                     notestr = shared.get_inst_name(key + shared.note2drums)
-                    empty, delim = shared.empty_drums, ''
                     if notestr == '?':
                         unlettered.add('no letter yet for `{}`'.format(
                             shared.gm_drums[key + shared.note2drums][1]))
@@ -356,16 +348,16 @@ class RppFile:
                         key = shared.standard_printseq.index(notestr)
                 else:
                     notestr = shared.get_note_name(key) #  - 12)
-                    empty, delim = shared.empty_note, ' '
                 factor = shared.tick_factor
                 for i in range(factor * (note_events[-1] // factor + 1)):
                     if i in note_events:
                         events.append(notestr)
                     else:
-                        events.append(empty)
+                        events.append(empty_event[is_drumtrack])
                     if (i + 1) % factor == 0:
                         seqnum += 1
-                        if events != factor * [empty]:
+                        if events != factor * [empty_event[is_drumtrack]]:
+                            delim = sep[is_drumtrack]
                             printables[seqnum].append((key, delim.join(events)))
                         events = []
             for key, pattern_lines in sorted(printables.items()):
@@ -378,6 +370,33 @@ class RppFile:
             print(line, file=stream)
         return unlettered
 
+    def prepare_print_instruments(self):
+        self.all_note_tracks = collections.defaultdict(
+            lambda: collections.defaultdict(list))
+        self.unlettered = set()
+        self.all_notes = collections.defaultdict(set)
+        for trackno in self.instruments:
+            is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
+            pattdict = {}
+            for pattnum, _, pattdata in self.patterns[trackno]:
+                pattdict[pattnum] = pattdata
+                self.all_notes[trackno].update(pattdata.keys())
+            pattlens = dict(self.pattstarts)
+            for pattstart, pattnum in self.pattern_list[trackno]:
+                pattlen = pattlens[pattstart]
+                for note in self.all_notes[trackno]:
+                    if is_drumtrack:
+                        notestr = shared.get_inst_name(note + shared.note2drums)
+                        if notestr == '?':
+                            unlettered.add('no letter yet for `{}`'.format(
+                                shared.gm_drums[note + shared.note2drums][1]))
+                    else:
+                        notestr = shared.get_note_name(note)
+                    to_extend = pattlen * [empty_event[is_drumtrack]]
+                    if pattnum != -1 and note in pattdict[pattnum]:
+                        for event in pattdict[pattnum][note]:
+                            to_extend[event] = notestr
+                    self.all_note_tracks[trackno][note].extend(to_extend)
 
     def print_instrument_full(self, trackno, opts, stream=sys.stdout):
         interval, clear_empty = opts
@@ -385,41 +404,16 @@ class RppFile:
         unlettered = set()
         is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
         if is_drumtrack:
-            empty_event = '.'
-            sep = ''
             interval *= 2
-        else:
-            empty_event = '...'
-            sep = ' '
-        pattdict = {}
-        all_notes = set()
-        for pattnum, _, pattdata in self.patterns[trackno]:
-            pattdict[pattnum] = pattdata
-            all_notes.update(pattdata.keys())
-        pattlens = dict(self.pattstarts)
-        for pattstart, pattnum in self.pattern_list[trackno]:
-            pattlen = pattlens[pattstart]
-            for note in all_notes:
-                if is_drumtrack:
-                    notestr = shared.get_inst_name(note + shared.note2drums)
-                    if notestr == '?':
-                        unlettered.add('no letter yet for `{}`'.format(
-                            shared.gm_drums[note + shared.note2drums][1]))
-                else:
-                    notestr = shared.get_note_name(note)
-                to_extend = pattlen * [empty_event]
-                if pattnum != -1 and note in pattdict[pattnum]:
-                    for event in pattdict[pattnum][note]:
-                        to_extend[event] = notestr
-                data[note].extend(to_extend)
 
         full_length = sum([y for x, y in self.pattstarts])
-        empty = sep.join(interval * [empty_event])
-        all_notes = [x for x in reversed(sorted(all_notes))]
+        empty = sep[is_drumtrack].join(interval * [empty_event[is_drumtrack]])
+        all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
         for eventindex in range(0, full_length, interval):
             not_printed = True
             for note in all_notes:
-                line = sep.join(data[note][eventindex:eventindex+interval])
+                line = sep[is_drumtrack].join(self.all_note_tracks[trackno][note]
+                    [eventindex:eventindex+interval])
                 if clear_empty and line == empty:
                     pass
                 else:
@@ -429,8 +423,34 @@ class RppFile:
                 print(empty, file=stream)
             print('', file=stream)
 
-
-
-        return unlettered
+    def print_all_instruments_full(self, opts, stream=sys.stdout):
+        interval, clear_empty, instlist = opts
+        inst2sam = {y: x for x, y in self.instruments.items()}
+        data = collections.defaultdict(list)
+        full_length = sum([y for x, y in self.pattstarts])
+        for eventindex in range(0, full_length, interval):
+            for instname in instlist:
+                trackno = inst2sam[instname]
+                is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
+                if is_drumtrack:
+                    print('drums', file=stream)
+                else:
+                    print(instname, file=stream)
+                delim = sep[is_drumtrack]
+                empty = delim.join(interval * [empty_event[is_drumtrack]])
+                all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
+                not_printed = True
+                for note in all_notes:
+                    line = delim.join(self.all_note_tracks[trackno][note]
+                        [eventindex:eventindex+interval])
+                    if clear_empty and line == empty:
+                        pass
+                    else:
+                        print('  ', line, file=stream)
+                        not_printed = False
+                if not_printed:
+                    print('  ', empty, file=stream)
+                print('', file=stream)
+            print('', file=stream)
 
 

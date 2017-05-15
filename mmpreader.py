@@ -9,6 +9,10 @@ except ImportError:
     import xml.etree.ElementTree as et
 import shared
 
+def get_druminst_order(x):
+    y = shared.get_inst_name(x + shared.octave_length + shared.note2drums)
+    return shared.standard_printseq.index(y)
+
 class MMPFile:
 
     def __init__(self, filename):
@@ -66,7 +70,14 @@ class MMPFile:
         self.patternlists = patternlists
         self.patterndata = patterndata
 
-        patternlists = collections.defaultdict(list)
+        maxpattnum = 0
+        for name, data in trackdata_split.items():
+            newmax = max((x[0] for x in data))
+            if newmax > maxpattnum:
+                maxpattnum = newmax
+        maxpattnum += 1
+
+        patternlists = collections.defaultdict(lambda: maxpattnum * [-1])
         patterndata = collections.defaultdict(list)
         for name, data in trackdata_split.items():
             pattnum = 0 # start with 1
@@ -79,7 +90,7 @@ class MMPFile:
                     pattnum += 1
                     patterndata[name].append((pattern, len))
                     pattern_number = pattnum
-                patternlists[name].append(pattern_number)
+                patternlists[name][seq] = pattern_number
         self.patternlists_split = patternlists
         self.patterndata_split = patterndata
 
@@ -138,7 +149,7 @@ class MMPFile:
                 when = int(note.get('pos'))
                 when_split = when // shared.timing_unit
                 if when_split >= max:
-                    patterns_split.append((pattstart, notes_split, shared.per_line))
+                    patterns_split.append((pattstart_split, notes_split, shared.per_line))
                     pattlen_split -= shared.per_line
                     pattstart_split += 1
                     max += shared.per_line
@@ -184,7 +195,7 @@ class MMPFile:
         if not full:
             data.extend(shared.build_patt_header())
             for i, x in enumerate(self.tracknames):
-                data.extend(shared.build_patt_list(i + 1, x, self.patternlists[x]))
+                data.extend(shared.build_patt_list(i + 1, x, self.patternlists_split[x]))
 
         for line in data:
             print(line.rstrip(), file=_out)
@@ -278,9 +289,39 @@ class MMPFile:
                     print(' '.join(printable), file=_out)
             print('', file=_out)
 
+    def prepare_print_instruments(self, druminst=None):
+        if not druminst: druminst = []
+        self.druminst = druminst
+        self.notes_data_dict = collections.defaultdict(dict)
+        self.all_notes = collections.defaultdict(set)
+        for trackname in self.tracknames:
+            is_drumtrack = trackname in druminst
+            print(trackname, is_drumtrack)
+            # bepaal max. lengte
+            start, _, lng = self.patterndata[trackname][-1]
+            print(trackname, start, lng)
+            for pattern in self.patterndata[trackname]:
+                self.all_notes[trackname].update([x[0] for x in pattern[1]])
+            ## total_length = int((start + len) / shared.timing_unit)
+            self.total_length = (start + lng) // shared.timing_unit
+            empty = shared.empty_drums if is_drumtrack else shared.empty_note
+            for note in self.all_notes[trackname]:
+                self.notes_data_dict[trackname][note] = [empty] * self.total_length
+            for start, pattern, lng in self.patterndata[trackname]:
+                for note, timing in pattern:
+                    ## idx = int((start + timing) / shared.timing_unit)
+                    idx = (start + timing) // shared.timing_unit
+                    if is_drumtrack:
+                        notename = shared.get_inst_name(note +
+                            shared.octave_length + shared.note2drums)
+                    else:
+                        notename = shared.get_note_name(note + shared.octave_length)
+                    self.notes_data_dict[trackname][note][idx] = notename
+            ## print(notes_data_dict, file=_out)
+
     def print_instrument_full(self, trackname, options, _out=sys.stdout):
         interval, clear_empty = options
-        is_drumtrack = trackname == 'drums'
+        is_drumtrack = trackname in self.druminst
         if is_drumtrack:
             interval *= 2
             sep = ''
@@ -289,37 +330,16 @@ class MMPFile:
             sep = ' '
             empty = shared.empty_note
         empty_line = sep.join(interval * [empty])
-        # bepaal max. lengte
-        start, _, lng = self.patterndata[trackname][-1]
-        notes_data_dict = {}
-        all_notes = set()
-        for pattern in self.patterndata[trackname]:
-            all_notes.update([x[0] for x in pattern[1]])
-        ## total_length = int((start + len) / shared.timing_unit)
-        total_length = (start + lng) // shared.timing_unit
-        for note in all_notes:
-            notes_data_dict[note] = [empty] * total_length
-        for start, pattern, lng in self.patterndata[trackname]:
-            for note, timing in pattern:
-                ## idx = int((start + timing) / shared.timing_unit)
-                idx = (start + timing) // shared.timing_unit
-                if is_drumtrack:
-                    notes_data_dict[note][idx] = shared.get_inst_name(note +
-                        shared.octave_length + shared.note2drums)
-                else:
-                    notes_data_dict[note][idx] = shared.get_note_name(note +
-                        shared.octave_length)
-        ## print(notes_data_dict, file=_out)
         if is_drumtrack:
-            notes_to_show = [x for x in sorted(all_notes,
-                key=lambda x: shared.standard_printseq.index(shared.get_inst_name(
-                x + shared.octave_length + shared.note2drums)))]
+            notes_to_show = [x for x in sorted(self.all_notes[trackname],
+                key=get_druminst_order)]
         else:
-            notes_to_show = [x for x in reversed(sorted(all_notes))]
-        for eventindex in range(0, total_length, interval):
+            notes_to_show = [x for x in reversed(sorted(self.all_notes[trackname]))]
+        for eventindex in range(0, self.total_length, interval):
             not_printed = True
             for note in notes_to_show:
-                line = sep.join(notes_data_dict[note][eventindex:eventindex+interval])
+                line = sep.join(self.notes_data_dict[trackname][note]
+                    [eventindex:eventindex+interval])
                 if clear_empty and line == empty_line:
                     pass
                 else:
@@ -328,6 +348,28 @@ class MMPFile:
             if not_printed:
                 print(empty_line, file=_out)
             print('', file=_out)
+
+    def prepare_print_beat_bassline(self, sample_list, printseq):
+        ## notes_data_dict = {}
+        self.total_length = 0
+        if sample_list:
+            instdict = dict(sample_list)
+        for pattstart, pattnum in self.bbpatternlist:
+            pattdata, pattlen = self.bbpatterndata[pattnum]
+            self.total_length += pattlen
+        self.total_length //= shared.timing_unit #  (shared.tick_factor // 2)
+        for inst in printseq:
+            self.notes_data_dict['bb'][inst] = [shared.empty_drums] * self.total_length
+
+        for pattstart, pattnum in self.bbpatternlist:
+            pattdata, pattlen = self.bbpatterndata[pattnum]
+            pattlen //= shared.timing_unit #  (shared.tick_factor // 2)
+            for instname in self.bbtracknames:
+                if instname in pattdata:
+                    for _, timing in pattdata[instname]:
+                        note = instdict[instname]
+                        indx = (pattstart + timing) // shared.timing_unit
+                        self.notes_data_dict['bb'][note][indx] = note
 
     def print_beat_bassline_full(self, sample_list, printseq, opts, _out=sys.stdout):
         interval, clear_empty = opts
@@ -342,37 +384,33 @@ class MMPFile:
         """
         interval *= 2
         sep = ''
-        notes_data_dict = {}
-        total_length = 0
-        if sample_list:
-            instdict = dict(sample_list)
-        for pattstart, pattnum in self.bbpatternlist:
-            pattdata, pattlen = self.bbpatterndata[pattnum]
-            total_length += pattlen
-        total_length //= shared.timing_unit #  (shared.tick_factor // 2)
-        ## for inst in self.bbtracknames:
-        for inst in printseq:
-            notes_data_dict[inst] = [shared.empty_drums] * total_length
-        ## print(notes_data_dict, file=_out)
-        ## return
+        ## notes_data_dict = {}
+        ## total_length = 0
+        ## if sample_list:
+            ## instdict = dict(sample_list)
+        ## for pattstart, pattnum in self.bbpatternlist:
+            ## pattdata, pattlen = self.bbpatterndata[pattnum]
+            ## total_length += pattlen
+        ## total_length //= shared.timing_unit #  (shared.tick_factor // 2)
+        ## for inst in printseq:
+            ## notes_data_dict[inst] = [shared.empty_drums] * total_length
 
-        for pattstart, pattnum in self.bbpatternlist:
-            pattdata, pattlen = self.bbpatterndata[pattnum]
-            pattlen //= shared.timing_unit #  (shared.tick_factor // 2)
-            for instname in self.bbtracknames:
-                if instname in pattdata:
-                    for _, timing in pattdata[instname]:
-                        note = instdict[instname]
-                        indx = (pattstart + timing) // shared.timing_unit
-                        notes_data_dict[note][indx] = note
-        ## print(notes_data_dict, file=_out)
-        ## return
+        ## for pattstart, pattnum in self.bbpatternlist:
+            ## pattdata, pattlen = self.bbpatterndata[pattnum]
+            ## pattlen //= shared.timing_unit #  (shared.tick_factor // 2)
+            ## for instname in self.bbtracknames:
+                ## if instname in pattdata:
+                    ## for _, timing in pattdata[instname]:
+                        ## note = instdict[instname]
+                        ## indx = (pattstart + timing) // shared.timing_unit
+                        ## notes_data_dict[note][indx] = note
 
         empty_line = sep.join(interval * [shared.empty_drums])
-        for eventindex in range(0, total_length, interval):
+        for eventindex in range(0, self.total_length, interval):
             not_printed = True
             for note in printseq:
-                line = sep.join(notes_data_dict[note][eventindex:eventindex+interval])
+                line = sep.join(self.notes_data_dict['bb'][note]
+                    [eventindex:eventindex+interval])
                 if clear_empty and line == empty_line:
                     pass
                 else:
@@ -382,5 +420,69 @@ class MMPFile:
                 print(empty, file=_out)
             print('', file=_out)
 
+    # net als print_drums (via aparte samples) ook deze twee niet geïmplementeerd:
+    def prepare_print_drums(self, sample_list):
+        pass
+    def print_drums_full(self, sample_list, printseq, _out=sys.stdout):
+        pass
 
+    def print_all_instruments_full(self, sample_list, printseq, opts,
+            _out=sys.stdout):
+        interval, clear_empty, instlist = opts
+        print(instlist)
+        print(self.tracknames)
+        for eventindex in range(0, self.total_length, interval):
+            for trackname in instlist:
+                print(trackname, file=_out)
+                if trackname not in self.druminst:
+                    sep = ' '
+                    empty_line = ' '.join(interval * [shared.empty_note])
+                    notes_to_show = [x for x in reversed(sorted(
+                        self.all_notes[trackname]))]
+                    not_printed = True
+                    for note in notes_to_show:
+                        line = sep.join(self.notes_data_dict[trackname][note]
+                            [eventindex:eventindex+interval])
+                        if clear_empty and line == empty_line:
+                            pass
+                        else:
+                            print('  ', line, file=_out)
+                            not_printed = False
+                    if not_printed:
+                        print('  ', empty_line, file=_out)
+                    print('', file=_out)
+                else:
+                    sep = ''
+                    empty_line = sep.join(interval * [shared.empty_drums])
+                    notes_to_show = [x for x in sorted(self.all_notes[trackname],
+                        key=get_druminst_order)]
+                    not_printed = True
+                    for note in notes_to_show:
+                        line = sep.join(self.notes_data_dict[trackname][note]
+                            [eventindex:eventindex+interval])
+                        if clear_empty and line == empty_line:
+                            pass
+                        else:
+                            print('  ', line, file=_out)
+                            not_printed = False
+                    if not_printed:
+                        print('  ', empty_line, file=_out)
+                    print('', file=_out)
 
+            if 'bb' in self.notes_data_dict:
+                print('beat-bassline', file=_out)
+                sep = ''
+                not_printed = True
+                for note in printseq:
+                    line = sep.join(self.notes_data_dict['bb'][note]
+                        [eventindex:eventindex+interval])
+                    if clear_empty and line == empty_line:
+                        pass
+                    else:
+                        print('  ', line, file=_out)
+                        not_printed = False
+                if not_printed:
+                    print('  ', empty, file=_out)
+                print('', file=_out)
+
+            print('', file=_out)

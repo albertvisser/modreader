@@ -241,6 +241,13 @@ class ModFile:
                 self.playseqs['drums'].append(-1)
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
+        """
+        sample_list is a list of pattern numbers associated with the drum samples
+        to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
+        so this can be used to determine if it's a drum instrument
+        printseq indicates the sequence to print these top to bottom e.g. 'hsb'
+        stream is a file-like object to write the output to
+        """
         if sample_list is None: sample_list = []
         drumsamples = [x for x, y in sample_list]
         data = shared.build_header("module", self.filename, self.name.rstrip(chr(0)))
@@ -276,26 +283,25 @@ class ModFile:
         for text in data:
             print(text.rstrip(), file=_out)
 
-    def print_drums(self, sample_list, printseq, _out=sys.stdout):
+    ## def print_drums(self, sample_list, printseq, _out=sys.stdout):
+    def print_drums(self, printseq, _out=sys.stdout):
         """collect the drum sample events and print them together
-
-        sample_list is a list of pattern numbers associated with the instruments
-        to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
-        printseq indicates the sequence to print these top to bottom e.g. 'hsb'
-        stream is a file-like object to write the output to
         """
         for pattnum, pattern in enumerate(self.pattern_data['drums']):
             pattlen = pattern['len']
+            empty_patt = pattlen * shared.empty_drums
             print(shared.patt_start.format(pattnum + 1), file=_out)
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
                     events = [x[0] for x in events]
-                    print(shared.line_start, end='', file=_out)
+                    printable = ''
                     for i in range(pattlen):
-                        printable = inst if i in events else shared.empty_drums
-                        print(printable, end='', file=_out)
-                    print('', file=_out)
+                        new = inst if i in events else shared.empty_drums
+                        printable += new
+                    if printable != empty_patt:
+                        print(''.join((shared.line_start, printable)), file=_out)
+                    ## print('', file=_out)
             print('', file=_out)
 
     def print_instrument(self, sample, _out=sys.stdout):
@@ -323,7 +329,8 @@ class ModFile:
             print('', file=_out)
 
 
-    def print_drums_full(self, sample_list, printseq, opts, _out=sys.stdout):
+    ## def prepare_print_drums(self, sample_list, printseq, opts, _out=sys.stdout):
+    def prepare_print_drums(self, printseq):
         """collect the drum sample events and print them together
 
         sample_list is a list of pattern numbers associated with the instruments
@@ -331,27 +338,34 @@ class ModFile:
         printseq indicates the sequence to print these top to bottom e.g. 'hsb'
         stream is a file-like object to write the output to
         """
-        all_drum_tracks = collections.defaultdict(list)
-        interval, clear_empty = opts
-        interval *= 2
-        empty = interval * '.'
+        self.all_drum_tracks = collections.defaultdict(list)
+        ## interval, clear_empty = opts
+        ## interval = 2 * opts[0]
+        ## empty = interval * '.'
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
             if pattnum == -1:
                 pattlen = self.lengths[pattseq]
                 for inst in printseq:
-                    all_drum_tracks[inst].extend([shared.empty_drums] * pattlen)
+                    self.all_drum_tracks[inst].extend([shared.empty_drums] * pattlen)
                 continue
             pattern = self.pattern_data['drums'][pattnum - 1]
             for inst in printseq:
                 events = [x[0] for x in pattern[inst]]
                 for i in range(pattern['len']):
                     to_append = inst if i in events else shared.empty_drums
-                    all_drum_tracks[inst].append(to_append)
+                    self.all_drum_tracks[inst].append(to_append)
+
+    ## def print_drums_full(self, sample_list, printseq, opts, _out=sys.stdout):
+    def print_drums_full(self, printseq, opts, _out=sys.stdout):
         total_length = sum(self.lengths)
+        interval, clear_empty = opts
+        interval *= 2
+        empty = interval * '.'
         for eventindex in range(0, total_length, interval):
             not_printed = True
             for inst in printseq:
-                line = ''.join(all_drum_tracks[inst][eventindex:eventindex+interval])
+                tracks = self.all_drum_tracks[inst]
+                line = ''.join(tracks[eventindex:eventindex+interval])
                 if clear_empty and line == empty:
                     pass
                 else:
@@ -362,48 +376,63 @@ class ModFile:
             print('', file=_out)
 
 
-    def print_instrument_full(self, sample, opts, _out=sys.stdout):
+    ## def print_instrument_full(self, sample, opts, _out=sys.stdout):
+    def prepare_print_instruments(self, sample_list):
         """print the events for an instrument as a piano roll
 
         sample is the number of the sample to print data for
         stream is a file-like object to write the output to
         """
-        all_note_tracks = collections.defaultdict(list)
-        interval, clear_empty = opts
+        self.all_note_tracks = collections.defaultdict(
+            lambda: collections.defaultdict(list))
+        self.all_notes = collections.defaultdict(set)
+        ## interval, clear_empty = opts
 
-        pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
-        all_notes = set()
-        for pattnum, pattern in enumerate(self.pattern_data[sample - 1]):
-            for item in pattern:
-                try:
-                    timing, note = item
-                except TypeError:
+        for sample, y in sample_list:
+
+            pattdict = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            pattdata = self.pattern_data[sample - 1]
+            for pattnum, pattern in enumerate(pattdata):
+                for item in pattern:
+                    try:
+                        timing, note = item
+                    except TypeError:
+                        continue
+                    pattdict[pattnum][note].append(timing)
+                    self.all_notes[sample].add(note)
+
+            all_notes = [x for x in reversed(sorted(self.all_notes[sample],
+                key=shared.getnotenum))]
+            playseq = self.playseqs[sample - 1]
+            for pattseq, pattnum in enumerate(playseq):
+                pattlen = self.lengths[pattseq]
+                if pattnum == -1:
+                    for note in self.all_notes[sample]:
+                        self.all_note_tracks[sample][note].extend(
+                            [shared.empty_note] * pattlen)
                     continue
-                pattdict[pattnum][note].append(timing)
-                all_notes.add(note)
+                pattern = pattdict[pattnum - 1]
+                for note in self.all_notes[sample]:
+                    events = pattern[note]
+                    for i in range(pattlen):
+                        to_append = note if i in events else shared.empty_note
+                        self.all_note_tracks[sample][note].append(to_append)
 
-        all_notes = [x for x in reversed(sorted(all_notes, key=shared.getnotenum))]
-        for pattseq, pattnum in enumerate(self.playseqs[sample - 1]):
-            pattlen = self.lengths[pattseq]
-            if pattnum == -1:
-                for note in all_notes:
-                    all_note_tracks[note].extend([shared.empty_note] * pattlen)
-                continue
-            pattern = pattdict[pattnum - 1]
-            for note in all_notes:
-                events = pattern[note]
-                for i in range(pattlen):
-                    to_append = note if i in events else shared.empty_note
-                    all_note_tracks[note].append(to_append)
+    ## def print_instrument_full(self, sample, opts, _out=sys.stdout):
+    def print_instrument_full(self, sample, opts, _out=sys.stdout):
         total_length = sum(self.lengths)
+        interval, clear_empty = opts
 
         if interval == -1:
             interval = total_length
         empty = ' '.join(interval * ['...'])
         for eventindex in range(0, total_length, interval):
             not_printed = True
-            for note in all_notes:
-                line = ' '.join(all_note_tracks[note][eventindex:eventindex+interval])
+            for note in reversed(sorted(self.all_notes[sample], key=lambda x:
+                    shared.getnotenum(x))):
+                line = ' '.join(self.all_note_tracks[sample][note]
+                    [eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
@@ -412,3 +441,54 @@ class ModFile:
             if not_printed:
                 print(empty, file=_out)
             print('', file=_out)
+
+    def print_all_instruments_full(self, inst_list, druminst, drumseq, opts,
+            stream=sys.stdout):
+
+        total_length = sum(self.lengths)
+        interval, clear_empty, instlist_old = opts
+        inst_dict = {y:x for x, y in inst_list}
+        instlist = [(inst_dict[y], y) for x, y in instlist_old]
+
+        for eventindex in range(0, total_length, interval):
+
+            sep = ' '
+            empty = sep.join(interval * [shared.empty_note])
+            for sample, instname in instlist:
+
+                print('{}:'.format(instname), file=stream)
+                not_printed = True
+                for note in reversed(sorted(self.all_notes[sample], key=lambda x:
+                        shared.getnotenum(x))):
+                    line = sep.join(self.all_note_tracks[sample][note]
+                        [eventindex:eventindex + interval])
+                    if clear_empty and line == empty:
+                        pass
+                    else:
+                        print('  ', line, file=stream)
+                        not_printed = False
+                if not_printed:
+                    print('  ', empty, file=stream)
+                print('', file=stream)
+
+            sep = ''
+            empty = interval * shared.empty_drums
+            print('drums:', file=stream)
+            not_printed = True
+            print(druminst)
+            print(drumseq)
+            for instnum, instlett in sorted(druminst,
+                    key=lambda x: drumseq.index(x[1])):
+
+                line = sep.join(self.all_drum_tracks[instlett]
+                    [eventindex:eventindex + interval])
+                if clear_empty and line == empty:
+                    pass
+                else:
+                    print('  ', line, file=stream)
+                    not_printed = False
+            if not_printed:
+                print('  ', empty, file=stream)
+            print('', file=stream)
+
+            print('', file=stream)

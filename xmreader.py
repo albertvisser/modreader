@@ -3,6 +3,7 @@ import logging
 import pprint
 import struct
 import collections
+import itertools
 import shared
 
 logging.basicConfig(filename='/tmp/xmreader.log', level=logging.DEBUG,
@@ -37,7 +38,6 @@ class ExtModule:
         self._pattern_data = {}
         self._pattern_map = {}
         self.pattern_lengths = []
-        self.playseqs = collections.defaultdict(list)
         self.instruments = {}
         self.read()
 
@@ -66,6 +66,10 @@ class ExtModule:
         for pattstart, pattdata in self._raw_pattern_data.items():
             pattnum = self._pattern_map[pattstart]
             pattlen = len(pattdata)
+            if pattlen == 0:
+                self._pattern_data[pattnum][0][0] = []
+                self._pattern_data[pattnum][0]['len'] = pattlen
+                continue
             for lineno, line in enumerate(pattdata):
                 for event in line: # channel in range(channel_count):
                     ## if event[:2] == (0, 0): continue
@@ -77,6 +81,9 @@ class ExtModule:
                         sampledata_found[inst] = True
                         self._pattern_data[pattnum][inst][note].append(lineno)
                         self._pattern_data[pattnum][inst]['len'] = pattlen
+            if pattnum not in self._pattern_data:
+                self._pattern_data[pattnum][0][0] = []
+                self._pattern_data[pattnum][0]['len'] = pattlen
         for pattnum, pattdata in sorted(self._pattern_data.items()):
             for inst, instdata in pattdata.items():
                 if instdata['len']:
@@ -87,7 +94,7 @@ class ExtModule:
         ## print(self.instruments, sampledata_found)
         for ix, sample in self.instruments.items():
             samp = sample[0]
-            if sampledata_found[ix - 1]:
+            if sampledata_found[ix]:
                 samples_to_keep.append((ix, samp))
         self.samplenames = samples_to_keep
 
@@ -202,15 +209,16 @@ class ExtModule:
         self.pattern_data[sampnum] = pattern_list
 
         for ix, seq in enumerate(self._pattern_list):
-            if ix >= self.songlen:
-                break
             if seq in renumber:
                 self.playseqs[sampnum].append(renumber[seq])
             else:
                 self.playseqs[sampnum].append(-1)
 
     def remove_duplicate_drum_patterns(self, samplist):
-
+        """
+        sample_list is a list of pattern numbers associated with the instruments
+        to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
+        """
         inst2samp = {x: y[0] for x, y in enumerate(self.samplenames)}
         samp2inst = {y[0]: x for x,y in enumerate(self.samplenames)}
         single_instrument_samples = [inst2samp[x - 1] for x, y in samplist
@@ -266,8 +274,6 @@ class ExtModule:
             renumber[pattnum] = new_pattnum
         self.pattern_data['drums'] = pattern_list
         for ix, seq in enumerate(self._pattern_list):
-            if ix >= self.songlen:
-                break
             if seq in renumber:
                 self.playseqs['drums'].append(renumber[seq])
             else:
@@ -280,6 +286,7 @@ class ExtModule:
         data = shared.build_header("module", self.filename)
 
         instruments = []
+        self.playseqs = collections.defaultdict(list)
         for sampseq, sample in enumerate(self.samplenames):
             sample_name = sample[1]
             sample_string = ''
@@ -294,6 +301,24 @@ class ExtModule:
         if drumsamples:
             self.remove_duplicate_drum_patterns(sample_list)
         data.extend(shared.build_inst_list(instruments))
+        # pattern lengtes voor alle playseqs aanvullen
+        combined_playseqs = collections.defaultdict(list)
+        maxlen = max((len(x) for x in self.playseqs.values()))
+        if maxlen != min((len(x) for x in self.playseqs.values())):
+            print('Alarm! Niet alle tracks hebben evenveel pattern events',
+                file=_out)
+        pattlens = [0] * (maxlen)
+        for sampnum, playseq in self.playseqs.items():
+            for ix, pattnum in enumerate(playseq):
+                if pattnum != -1:
+                    pattlen = self.pattern_data[sampnum][pattnum - 1]['len']
+                    if pattlens[ix] == 0:
+                        pattlens[ix] = pattlen
+                    elif pattlens[ix] != pattlen:
+                        print('Alarm! Verschillende lengtes voor pattern event', ix,
+                            file=_out)
+        self.pattlens = pattlens
+        self.full_length = sum((x for x in self.pattlens))
 
         if not full:
             data.extend(shared.build_patt_header())
@@ -309,11 +334,9 @@ class ExtModule:
             print(text.rstrip(), file=_out)
 
 
-    def print_drums(self, sample_list, printseq, _out=sys.stdout):
+    def print_drums(self, printseq, _out=sys.stdout):
         """collect the drum sample events and print them together
 
-        sample_list is a list of pattern numbers associated with the instruments
-        to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
         printseq indicates the sequence to print these top to bottom e.g. 'hsb'
         stream is a file-like object to write the output to
         """
@@ -355,26 +378,30 @@ class ExtModule:
             print('', file=_out)
 
 
-    def print_drums_full(self, sample_list, printseq, opts, _out=sys.stdout):
-        interval, clear_empty = opts
-        interval *= 2
-        empty = interval * '.'
-        all_drum_events = collections.defaultdict(list)
+    def prepare_print_drums(self, printseq):
+        self.all_drum_events = collections.defaultdict(list)
+        ## print(self.initial_patterns, file=_out)
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
-            pattlen = self.initial_patterns[pattseq + 1]
-            initial_patt = pattlen * ['.']
+            pattlen = self.pattlens[pattseq]
+            initial_patt = pattlen * [shared.empty_drums]
             for inst in printseq:
                 pattdata = initial_patt[:]
                 if pattnum > -1:
                     for event in range(pattlen):
                         if event in self.pattern_data['drums'][pattnum - 1][inst]:
                             pattdata[event] = inst
-                all_drum_events[inst].extend(pattdata)
-        full_length = sum([x for x in self.initial_patterns.values()])
-        for eventindex in range(0, full_length, interval):
+                self.all_drum_events[inst].extend(pattdata)
+
+    def print_drums_full(self, printseq, opts, _out=sys.stdout):
+        interval, clear_empty = opts
+        interval *= 2
+        empty = interval * shared.empty_drums
+
+        for eventindex in range(0, self.full_length, interval):
             not_printed = True
             for inst in printseq:
-                line = ''.join(all_drum_events[inst][eventindex:eventindex+interval])
+                line = ''.join(
+                    self.all_drum_events[inst][eventindex:eventindex+interval])
                 if clear_empty and line == empty:
                     pass
                 else:
@@ -383,40 +410,49 @@ class ExtModule:
             if not_printed:
                 print(empty, file=_out)
             print('', file=_out)
+
+    def prepare_print_instruments(self, samplist):
+        self.all_note_tracks = collections.defaultdict(
+            lambda: collections.defaultdict(list))
+        self.all_notes = collections.defaultdict(set)
+        for sample, sampname in samplist:
+
+            ## pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
+            for pattnum, pattern in enumerate(self.pattern_data[sample]):
+                self.all_notes[sample].update(pattern.keys())
+            self.all_notes[sample].discard('len')
+            self.all_notes[sample] = [
+                x for x in reversed(sorted(self.all_notes[sample]))]
+
+            for pattseq, pattnum in enumerate(self.playseqs[sample]):
+                pattlen = self.pattlens[pattseq]
+                if pattnum == -1:
+                    for note in self.all_notes[sample]:
+                        self.all_note_tracks[sample][note].extend(
+                            [shared.empty_note] * pattlen)
+                    continue
+                pattern = self.pattern_data[sample][pattnum - 1]
+                for note in self.all_notes[sample]:
+                    events = pattern[note]
+                    for i in range(pattlen):
+                        if i in events:
+                            to_append = shared.get_note_name(
+                                ## note + shared.octave_length - 1)
+                                note - 1)
+                        else:
+                            to_append = shared.empty_note
+                        self.all_note_tracks[sample][note].append(to_append)
 
     def print_instrument_full(self, sample, opts, _out=sys.stdout):
-        all_note_tracks = collections.defaultdict(list)
         interval, clear_empty = opts
-        empty = ' '.join(interval * ['...'])
+        sep = ' '
+        empty = sep.join(interval * [shared.empty_note])
 
-        pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
-        all_notes = set()
-        for pattnum, pattern in enumerate(self.pattern_data[sample]):
-            all_notes.update(pattern.keys())
-        all_notes.discard('len')
-        all_notes = [x for x in reversed(sorted(all_notes))]
-
-        for pattseq, pattnum in enumerate(self.playseqs[sample]):
-            pattlen = self.initial_patterns[pattseq + 1]
-            if pattnum == -1:
-                for note in all_notes:
-                    all_note_tracks[note].extend([shared.empty_note] * pattlen)
-                continue
-            pattern = self.pattern_data[sample][pattnum - 1]
-            for note in all_notes:
-                events = pattern[note]
-                for i in range(pattlen):
-                    if i in events:
-                        to_append = shared.get_note_name(
-                            note + shared.octave_length - 1)
-                    else:
-                        to_append = shared.empty_note
-                    all_note_tracks[note].append(to_append)
-        full_length = sum([x for x in self.initial_patterns.values()])
-        for eventindex in range(0, full_length, interval):
+        for eventindex in range(0, self.full_length, interval):
             not_printed = True
-            for note in all_notes:
-                line = ' '.join(all_note_tracks[note][eventindex:eventindex+interval])
+            for note in self.all_notes[sample]:
+                tracknotes = self.all_note_tracks[sample][note]
+                line = sep.join(tracknotes[eventindex:eventindex+interval])
                 if clear_empty and line == empty:
                     pass
                 else:
@@ -426,3 +462,44 @@ class ExtModule:
                 print(empty, file=_out)
             print('', file=_out)
 
+    def print_all_instruments_full(self, samplist, printseq, opts, _out=sys.stdout):
+        interval, clear_empty = opts
+
+        inst2sam = {y: x for x, y in self.samplenames}
+        for eventindex in range(0, self.full_length, interval):
+
+            sep = ' '
+            empty = sep.join(interval * [shared.empty_note])
+            for sampseq, sampname in samplist:
+                print(sampname, file=_out)
+                sample = inst2sam[sampname]
+                not_printed = True
+                for note in self.all_notes[sample]:
+                    tracknotes = self.all_note_tracks[sample][note]
+                    line = sep.join(tracknotes[eventindex:eventindex+interval])
+                    if clear_empty and line == empty:
+                        pass
+                    else:
+                        print('  ', line, file=_out)
+                        not_printed = False
+                if not_printed:
+                    print('  ', empty, file=_out)
+                print('', file=_out)
+
+            sep = ''
+            empty = interval * shared.empty_drums
+            print('drums:', file=_out)
+            not_printed = True
+            for inst in printseq:
+                tracknotes = self.all_drum_events[inst]
+                line = sep.join(tracknotes[eventindex:eventindex+interval])
+                if clear_empty and line == empty:
+                    pass
+                else:
+                    print('  ', line, file=_out)
+                    not_printed = False
+            if not_printed:
+                print('  ', empty, file=_out)
+            print('', file=_out)
+
+            print('', file=_out)
