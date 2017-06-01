@@ -2,6 +2,12 @@ import sys
 import struct
 import collections
 import shared
+import logging
+
+
+def log(inp):
+    logging.info(inp)
+
 
 def get_note_name(inp):
     """translate note number to note name
@@ -11,6 +17,7 @@ def get_note_name(inp):
     if inp == 0:
         return shared.empty_note
     return shared.get_note_name(inp + 3 * shared.octave_length)
+
 
 def mmd0_decode(data):
     """
@@ -43,8 +50,10 @@ def mmd1_decode(data):
     instr_number = data[1] & 0x3F
     return note_number, instr_number, data[2], data[3]
 
+
 def read_pointer(stream):
     return struct.unpack('>L', stream.read(4))[0]
+
 
 def read_string(stream, length):
     text = struct.unpack('{}s'.format(length), stream.read(length))
@@ -70,8 +79,6 @@ class MedModule:
         for pattnum, pattern in enumerate(self._pattern_data):
             length, pattern = pattern
             self.pattern_lengths.append(length)
-            events = []
-            last_event = False
             for ix, track in enumerate(pattern):
                 for note, samp in track:
                     if note:
@@ -84,19 +91,16 @@ class MedModule:
                 samples_to_keep.append((ix, samp))
         self.samplenames = samples_to_keep
 
-
     def read(self):
-
         # instead of repositioning while reading, read the entire file first and then
         # reposition in memory?
-
         with open(self.filename, 'rb') as _med:
 
             mod_header = struct.unpack('>4s9L4HhBB', _med.read(52))
             self.modtype = str(mod_header[0], encoding='utf-8')
             if self.modtype not in ('MMD0', 'MMD1'):
                 raise ValueError('Not a valid MED module')
-            modlen = mod_header[1]
+            ## modlen = mod_header[1]
             songinfo_start = mod_header[2]
             blockarray_start = mod_header[4]
             instheader_start = mod_header[6]
@@ -106,7 +110,7 @@ class MedModule:
             songinfo = struct.unpack('>504BHH256BHBbbb16bbb', _med.read(788))
             blockcount = songinfo[504]
             self.songlen = songinfo[505]
-            self.raw_playseq = songinfo[506:506+256]
+            self.raw_playseq = songinfo[506:506 + 256]
             self.sample_count = songinfo[784]
 
             _med.seek(blockarray_start)
@@ -121,7 +125,7 @@ class MedModule:
 
             _med.seek(expansion_start)
             data = struct.unpack('>LLHHLLLHH7L7B', _med.read(63))
-            instrext_start, instrext_count, instrext_len = data[1:4]
+            ## instrext_start, instrext_count, instrext_len = data[1:4]
             songoms_start, songoms_len = data[4:6]
             instrinfo_start, instrinfo_count, instrinfo_len = data[6:9]
 
@@ -146,9 +150,9 @@ class MedModule:
                 if self.modtype == 'MMD0':
                     tracks, lines = struct.unpack('BB', _med.read(2))
                     this_pattern.append(lines)
-                    for x in range(lines + 1):
+                    for i in range(lines + 1):
                         linedata = []
-                        for y in range(tracks):
+                        for j in range(tracks):
                             notedata = struct.unpack('3B', _med.read(3))
                             linedata.append(mmd0_decode(notedata)[:2])
                         this_pattern.append(linedata)
@@ -172,15 +176,8 @@ class MedModule:
 
                 pattern_lengths_and_data.append((lines + 1, this_pattern))
 
-            ## with open('/tmp/01-pattern-lengths-and-data-med', 'w') as _o:
-                ## for pattnum, data in enumerate(pattern_lengths_and_data):
-                    ## pattlen, pattdata = data
-                    ## print('pattern', pattnum, 'lengte:', pattlen, file=_o)
-                    ## for event in pattdata: print('   ', event, file=_o)
-
             # now to split up the patterns to be no longer that 32
             new_patterns = []
-            ophogen = 0
             all_patt_lengths = collections.defaultdict(list)
             newpattnums = collections.defaultdict(list)
             pattnum = 0
@@ -199,7 +196,6 @@ class MedModule:
                 all_patt_lengths[ix].append(pattlen)
                 newpattnums[ix].append(pattnum)
                 pattnum += 1
-
         self._pattern_data = new_patterns
         self.pattern_count = blockcount
         self.playseq, self.all_pattern_lengths = [], []
@@ -208,19 +204,17 @@ class MedModule:
             self.all_pattern_lengths.extend(all_patt_lengths[patt])
         self.all_pattern_lengths = self.all_pattern_lengths[:self.songlen]
 
-
     def checks(self):
         return (
             'songlen = {}, len of raw pattern list = {}'.format(self.songlen,
-                len(self.raw_playseq)),
+                                                                len(self.raw_playseq)),
             'number of samples = {}, len of sample list = {}'.format(
                 self.sample_count, len(self.samplenames)),
             'number of patterns = {}, len of pattern data list = {}'.format(
-                self.pattern_count, len(self.pattern_data))
-            )
+                self.pattern_count, len(self.pattern_data)))
 
     def remove_duplicate_patterns(self, sampnum):
-        renumber = {} # collections.defaultdict(dict)
+        renumber = {}
         pattern_list = []
         newsampnum = self.samplenames[sampnum][0] + 1
         for pattnum, data in self._all_events.items():
@@ -243,12 +237,11 @@ class MedModule:
                 self.playseqs[sampnum + 1].append(-1)
 
     def remove_duplicate_drum_patterns(self, samplist):
-
         inst2samp = {x: y[0] + 1 for x, y in enumerate(self.samplenames)}
-        samp2inst = {y[0] + 1: x for x,y in enumerate(self.samplenames)}
+        ## samp2inst = {y[0] + 1: x for x, y in enumerate(self.samplenames)}
         single_instrument_samples = [inst2samp[x - 1] for x, y in samplist
-            if len(y) == 1]
-        lookup = {y: inst2samp[x - 1] for x, y in samplist if len(y) == 1}
+                                     if len(y) == 1]
+        ## lookup = {y: inst2samp[x - 1] for x, y in samplist if len(y) == 1}
         samp2lett = {inst2samp[x - 1]: y for x, y in samplist}
         drumpatterns = collections.defaultdict(lambda: collections.defaultdict(list))
         self.pattlengths = collections.defaultdict(dict)
@@ -262,8 +255,7 @@ class MedModule:
                 # theoretisch kan dit data voor meer toonhoogten bevatten
                 # maar voor mijn spullen kan ik uitgaan van één
                 drumpatterns[pattnum][samplett] = [y for x, y in patt.items()
-                    if x != 'len'][0]
-
+                                                   if x != 'len'][0]
         for pattnum, data in self._all_events.items():
             for sampnum, patt in data.items():
                 if sampnum in single_instrument_samples:
@@ -278,9 +270,8 @@ class MedModule:
                     # theoretisch kan dit data voor meer toonhoogten bevatten
                     # maar voor mijn spullen kan ik uitgaan van één
                     drumpatterns[pattnum][letter].extend([y for x, y in patt.items()
-                        if x != 'len'][0])
+                                                          if x != 'len'][0])
                     drumpatterns[pattnum][letter].sort()
-
         renumber = {}
         pattern_list = []
         for pattnum, patt in drumpatterns.items():
@@ -304,7 +295,6 @@ class MedModule:
             else:
                 self.playseqs['drums'].append(-1)
 
-
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
         if sample_list is None:
             drumsamples = sample_list = []
@@ -317,7 +307,7 @@ class MedModule:
         for sampseq, sample in enumerate(self.samplenames):
             sample_name = sample[1]
             sample_string = ''
-            sample_number = sampseq + 1 # start met 1 ipv 0
+            sample_number = sampseq + 1     # start met 1 ipv 0
             if sample_list:
                 for sampnum, sampstr in sample_list:
                     if sampnum == sample_number:
@@ -334,16 +324,14 @@ class MedModule:
             for sample_number, sample_name in instruments:
                 if sample_number not in drumsamples:
                     data.extend(shared.build_patt_list(sample_number, sample_name,
-                        self.playseqs[sample_number]))
+                                                       self.playseqs[sample_number]))
             if 'drums' in self.playseqs:
                 data.extend(shared.build_patt_list('', 'Drums',
-                    self.playseqs['drums']))
-
+                                                   self.playseqs['drums']))
         for text in data:
             print(text.rstrip(), file=_out)
 
-
-    def print_drums(self, sample_list, printseq, _out=sys.stdout):
+    def print_drums(self, printseq, _out=sys.stdout):
         """collect the drum sample events and print them together
 
         sample_list is a list of pattern numbers associated with the instruments
@@ -381,11 +369,11 @@ class MedModule:
                 printable = []
                 for tick in range(pattlen):
                     if tick in events:
-                        corr = note + 3 * shared.octave_length - 1 # comparability
-                        next = shared.get_note_name(corr)
+                        corr = note + 3 * shared.octave_length - 1  # comparability
+                        next_note = shared.get_note_name(corr)
                     else:
-                        next = shared.empty_note
-                    printable.append(next)
+                        next_note = shared.empty_note
+                    printable.append(next_note)
                 print(' '.join(printable), file=_out)
             print('', file=_out)
 
@@ -405,7 +393,7 @@ class MedModule:
                     to_append = inst if i in events else shared.empty_drums
                     self.all_drum_tracks[inst].append(to_append)
 
-    def print_drums_full(self, sample_list, printseq, opts, _out=sys.stdout):
+    def print_drums_full(self, printseq, opts, _out=sys.stdout):
         interval, clear_empty = opts
         interval *= 2
         empty = interval * shared.empty_drums
@@ -414,14 +402,14 @@ class MedModule:
             not_printed = True
             for inst in printseq:
                 line = ''.join(
-                    self.all_drum_tracks[inst][eventindex:eventindex+interval])
+                    self.all_drum_tracks[inst][eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print(line, file=_out)
                     not_printed = False
             if not_printed:
-                print(empty, file=_out)
+                print(shared.empty_drums, file=_out)
             print('', file=_out)
 
     def prepare_print_instruments(self, instlist):
@@ -469,38 +457,37 @@ class MedModule:
             not_printed = True
             for note in self.all_notes[sample]:
                 events = self.all_note_tracks[sample][note]
-                line = sep.join(events[eventindex:eventindex+interval])
+                line = sep.join(events[eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print(line, file=_out)
                     not_printed = False
             if not_printed:
-                print(empty, file=_out)
+                print(shared.empty_note, file=_out)
             print('', file=_out)
 
-
     def print_all_instruments_full(self, instlist, printseq, opts, _out=sys.stdout):
-        interval, clear_empty, instlist = opts
+        interval, clear_empty = opts
         total_length = sum(self.all_pattern_lengths)
 
         for eventindex in range(0, total_length, interval):
 
             sep = ' '
             empty = sep.join(interval * [shared.empty_note])
-            for sampnum, sample in instlist:
+            for _, sample in instlist:
                 print('{}:'.format(sample), file=_out)
                 not_printed = True
                 for note in self.all_notes[sample]:
-                    line = sep.join(
-                        self.all_note_tracks[sample][note][eventindex:eventindex+interval])
+                    notes = self.all_note_tracks[sample][note]
+                    line = sep.join(notes[eventindex:eventindex + interval])
                     if clear_empty and line == empty:
                         pass
                     else:
                         print('  ', line, file=_out)
                         not_printed = False
                 if not_printed:
-                    print('  ', empty, file=_out)
+                    print('  ', shared.empty_note, file=_out)
                 print('', file=_out)
 
             sep = ''
@@ -509,17 +496,14 @@ class MedModule:
             not_printed = True
             for inst in printseq:
                 line = sep.join(
-                    self.all_drum_tracks[inst][eventindex:eventindex+interval])
+                    self.all_drum_tracks[inst][eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print('  ', line, file=_out)
                     not_printed = False
             if not_printed:
-                print('  ', empty, file=_out)
+                print('  ', shared.empty_drums, file=_out)
             print('', file=_out)
 
             print('', file=_out)
-
-
-

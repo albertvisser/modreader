@@ -1,17 +1,13 @@
 import sys
-import logging
-import pprint
 import struct
 import collections
-import itertools
 import shared
+import logging
 
-logging.basicConfig(filename='/tmp/xmreader.log', level=logging.DEBUG,
-    format='%(asctime)s %(message)s')
-def log(inp, arg=[]):
-    if not arg:
-        logging.info('\n'.join(('', '---- *** ----', '')))
+
+def log(inp):
     logging.info(inp)
+
 
 def get_note_name(inp):
     """translate note number to note name
@@ -22,6 +18,7 @@ def get_note_name(inp):
         return shared.empty_note
     return shared.get_note_name(inp)
 
+
 def read_string(stream, length):
     text = struct.unpack('{}s'.format(length), stream.read(length))
     try:
@@ -30,12 +27,12 @@ def read_string(stream, length):
         result = str(text[0], encoding='latin-1')
     return result.rstrip('\x20\x00')
 
+
 class ExtModule:
 
     def __init__(self, filename):
         self.filename = filename
         self.pattern_data = {}
-        self._pattern_data = {}
         self._pattern_map = {}
         self.pattern_lengths = []
         self.instruments = {}
@@ -44,7 +41,7 @@ class ExtModule:
         # pattern list en map bijwerken met uitgesplitste
         original_pattern_map = self._raw_pattern_map
         initial_pattern_list = self._raw_pattern_list
-        renumber = collections.defaultdict(list) # {x: [] for x in initial_pattern_list}
+        renumber = collections.defaultdict(list)
         oldpattnum, newpattnum = -1, 0
         for pattstart in sorted(self._raw_pattern_data):
             try:
@@ -71,7 +68,7 @@ class ExtModule:
                 self._pattern_data[pattnum][0]['len'] = pattlen
                 continue
             for lineno, line in enumerate(pattdata):
-                for event in line: # channel in range(channel_count):
+                for event in line:
                     ## if event[:2] == (0, 0): continue
                     ## # log('event {} not skipped'.format(event))
                     ## note = get_note_name(event[0])
@@ -106,16 +103,15 @@ class ExtModule:
 
         with open(self.filename, 'rb') as _xm:
 
-            xm_id = read_string(_xm, 17)
-            module_name = read_string(_xm, 20)
-            x1A = struct.unpack('B', _xm.read(1))
-            tracker_name = read_string(_xm, 20)
-            tracker_ver = '.'.join([str(x) for x in
-                struct.unpack('BB', _xm.read(2))])
+            read_string(_xm, 17)                # module id
+            read_string(_xm, 20)                # module name
+            struct.unpack('B', _xm.read(1))     # standard
+            read_string(_xm, 20)                # tracker name
+            struct.unpack('BB', _xm.read(2))    # tracker version
             xm_header = struct.unpack('<L8H', _xm.read(20))
-            header_size, self.songlen, restart_pos = xm_header[:3]
+            header_size, self.songlen, _ = xm_header[:3]    # restart_pos
             channel_count, pattern_count, instr_count = xm_header[3:6]
-            freq_table, dflt_tempo, dflt_bpm = xm_header[6:]
+            ## freq_table, dflt_tempo, dflt_bpm = xm_header[6:]
             ## log('{}'.format(xm_header))
             pattern_table = struct.unpack('256B', _xm.read(256))
             self._raw_pattern_list = pattern_table[:int(self.songlen)]
@@ -124,15 +120,14 @@ class ExtModule:
             self._raw_pattern_data = {}
             pattstart = header_size + 60
             for pattnum in range(pattern_count):
-                "read pattern data"
                 _xm.seek(pattstart)        # position at start of pattern header
                 size, _, rows, data_size = struct.unpack('<LBHH', _xm.read(9))
-                ## log('pattern {} at {}; size {} rows {} datasize {}'.format(
-                    ## pattnum, hex(pattstart), size, rows, data_size))
+                log('pattern {} at {}; size {} rows {} datasize {}'.format(
+                    pattnum, hex(pattstart), size, rows, data_size))
                 orig_pattstart = pattstart
                 pattstart += size
                 self._raw_pattern_map[pattstart] = pattnum
-                _xm.seek(pattstart) # position at start of pattern data
+                _xm.seek(pattstart)     # position at start of pattern data
                 pattdata = []
                 if data_size > 0:
                     for rownum in range(rows):
@@ -143,7 +138,7 @@ class ExtModule:
                             pattdata = []
                         rowdata = []
                         endpattern = False
-                        for channel in range(channel_count):
+                        for _ in range(channel_count):
                             start_byte = struct.unpack('B', _xm.read(1))[0]
                             compressed = start_byte & 0x80
                             note = inst = vol = eff = parm = 0
@@ -175,14 +170,14 @@ class ExtModule:
                 _xm.seek(inst_start)
                 inst_size = struct.unpack('<L', _xm.read(4))[0]     # bv 0x00000107
                 inst_name = read_string(_xm, 22)                    # bv ElecBass
-                inst_type = struct.unpack('B', _xm.read(1))[0]      # bv 0xCF
+                _ = struct.unpack('B', _xm.read(1))[0]      # inst_type, bv 0xCF
                 sampcount = struct.unpack('<H', _xm.read(2))[0]     # bv 0x0001
-                samp_hdr_size = struct.unpack('<L', _xm.read(4))[0] # bv. 0x00000028
+                samp_hdr_size = struct.unpack('<L', _xm.read(4))[0]  # bv. 0x00000028
                 self.instruments[instnum + 1] = [inst_name, inst_start]
                 samples = []
                 _xm.seek(inst_start + inst_size)
                 inst_start += inst_size
-                for sampnum in range(sampcount):
+                for _ in range(sampcount):
                     test = _xm.read(18)
                     samp_header = struct.unpack('<LLLBBBBBB', test)
                     samp_name = read_string(_xm, 22)
@@ -191,9 +186,8 @@ class ExtModule:
                     inst_start += samp_hdr_size + samp_leng
                 self.instruments[instnum + 1].append(samples)
 
-
     def remove_duplicate_patterns(self, sampnum):
-        renumber = {} # collections.defaultdict(dict)
+        renumber = {}
         pattern_list = []
         ## newsampnum = self.instruments[sampnum][0]
         for pattnum, data in self._pattern_data.items():
@@ -208,7 +202,7 @@ class ExtModule:
                 renumber[pattnum] = new_pattnum
         self.pattern_data[sampnum] = pattern_list
 
-        for ix, seq in enumerate(self._pattern_list):
+        for seq in self._pattern_list:
             if seq in renumber:
                 self.playseqs[sampnum].append(renumber[seq])
             else:
@@ -220,10 +214,10 @@ class ExtModule:
         to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
         """
         inst2samp = {x: y[0] for x, y in enumerate(self.samplenames)}
-        samp2inst = {y[0]: x for x,y in enumerate(self.samplenames)}
+        ## samp2inst = {y[0]: x for x, y in enumerate(self.samplenames)}
         single_instrument_samples = [inst2samp[x - 1] for x, y in samplist
-            if len(y) == 1]
-        lookup = {y: inst2samp[x - 1] for x, y in samplist if len(y) == 1}
+                                     if len(y) == 1]
+        ## lookup = {y: inst2samp[x - 1] for x, y in samplist if len(y) == 1}
         samp2lett = {inst2samp[x - 1]: y for x, y in samplist}
         drumpatterns = collections.defaultdict(lambda: collections.defaultdict(list))
         self.pattlengths = collections.defaultdict(dict)
@@ -238,7 +232,7 @@ class ExtModule:
                 # theoretisch kan dit data voor meer toonhoogten bevatten
                 # maar voor mijn spullen kan ik uitgaan van één
                 drumpatterns[pattnum][samplett] = [y for x, y in patt.items()
-                    if x != 'len'][0]
+                                                   if x != 'len'][0]
 
         for pattnum, data in self._pattern_data.items():
             for sampnum, patt in data.items():
@@ -254,7 +248,7 @@ class ExtModule:
                     # theoretisch kan dit data voor meer toonhoogten bevatten
                     # maar voor mijn spullen kan ik uitgaan van één
                     drumpatterns[pattnum][letter].extend([y for x, y in patt.items()
-                        if x != 'len'][0])
+                                                          if x != 'len'][0])
                     drumpatterns[pattnum][letter].sort()
 
         renumber = {}
@@ -262,8 +256,8 @@ class ExtModule:
         for pattnum, patt in drumpatterns.items():
             lengths = [x[1] for x in patt['len']]
             if max(lengths) != lengths[0] or min(lengths) != lengths[0]:
-                print('ongelijke lengtes in pattern {}: {}'.format(pattnum,
-                    self.pattlengths[pattnum]))
+                print('ongelijke lengtes in pattern {}: {}'.format(
+                    pattnum, self.pattlengths[pattnum]))
             patt['len'] = lengths[0]
 
             try:
@@ -273,12 +267,11 @@ class ExtModule:
                 new_pattnum = len(pattern_list)
             renumber[pattnum] = new_pattnum
         self.pattern_data['drums'] = pattern_list
-        for ix, seq in enumerate(self._pattern_list):
+        for seq in self._pattern_list:
             if seq in renumber:
                 self.playseqs['drums'].append(renumber[seq])
             else:
                 self.playseqs['drums'].append(-1)
-
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
         if sample_list is None: sample_list = []
@@ -302,11 +295,11 @@ class ExtModule:
             self.remove_duplicate_drum_patterns(sample_list)
         data.extend(shared.build_inst_list(instruments))
         # pattern lengtes voor alle playseqs aanvullen
-        combined_playseqs = collections.defaultdict(list)
+        ## combined_playseqs = collections.defaultdict(list)
         maxlen = max((len(x) for x in self.playseqs.values()))
         if maxlen != min((len(x) for x in self.playseqs.values())):
             print('Alarm! Niet alle tracks hebben evenveel pattern events',
-                file=_out)
+                  file=_out)
         pattlens = [0] * (maxlen)
         for sampnum, playseq in self.playseqs.items():
             for ix, pattnum in enumerate(playseq):
@@ -316,7 +309,7 @@ class ExtModule:
                         pattlens[ix] = pattlen
                     elif pattlens[ix] != pattlen:
                         print('Alarm! Verschillende lengtes voor pattern event', ix,
-                            file=_out)
+                              file=_out)
         self.pattlens = pattlens
         self.full_length = sum((x for x in self.pattlens))
 
@@ -325,14 +318,13 @@ class ExtModule:
             for sample_number, sample_name in instruments:
                 if sample_number not in drumsamples:
                     data.extend(shared.build_patt_list(sample_number, sample_name,
-                        self.playseqs[sample_number]))
+                                                       self.playseqs[sample_number]))
             if 'drums' in self._pattern_list:
                 data.extend(shared.build_patt_list('', 'Drums',
-                    self.playseqs['drums']))
+                                                   self.playseqs['drums']))
 
         for text in data:
             print(text.rstrip(), file=_out)
-
 
     def print_drums(self, printseq, _out=sys.stdout):
         """collect the drum sample events and print them together
@@ -369,14 +361,13 @@ class ExtModule:
                 printable = []
                 for tick in range(pattlen):
                     if tick in events:
-                        corr = int(note) - 1 # comparability
-                        next = shared.get_note_name(corr)
+                        corr = int(note) - 1    # comparability
+                        next_note = shared.get_note_name(corr)
                     else:
-                        next = shared.empty_note
-                    printable.append(next)
+                        next_note = shared.empty_note
+                    printable.append(next_note)
                 print(' '.join(printable), file=_out)
             print('', file=_out)
-
 
     def prepare_print_drums(self, printseq):
         self.all_drum_events = collections.defaultdict(list)
@@ -401,21 +392,21 @@ class ExtModule:
             not_printed = True
             for inst in printseq:
                 line = ''.join(
-                    self.all_drum_events[inst][eventindex:eventindex+interval])
+                    self.all_drum_events[inst][eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print(line, file=_out)
                     not_printed = False
             if not_printed:
-                print(empty, file=_out)
+                print(shared.empty_drums, file=_out)
             print('', file=_out)
 
     def prepare_print_instruments(self, samplist):
         self.all_note_tracks = collections.defaultdict(
             lambda: collections.defaultdict(list))
         self.all_notes = collections.defaultdict(set)
-        for sample, sampname in samplist:
+        for sample, _ in samplist:  # sampname
 
             ## pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
             for pattnum, pattern in enumerate(self.pattern_data[sample]):
@@ -452,14 +443,14 @@ class ExtModule:
             not_printed = True
             for note in self.all_notes[sample]:
                 tracknotes = self.all_note_tracks[sample][note]
-                line = sep.join(tracknotes[eventindex:eventindex+interval])
+                line = sep.join(tracknotes[eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print(line, file=_out)
                     not_printed = False
             if not_printed:
-                print(empty, file=_out)
+                print(shared.empty_note, file=_out)
             print('', file=_out)
 
     def print_all_instruments_full(self, samplist, printseq, opts, _out=sys.stdout):
@@ -470,20 +461,20 @@ class ExtModule:
 
             sep = ' '
             empty = sep.join(interval * [shared.empty_note])
-            for sampseq, sampname in samplist:
+            for _, sampname in samplist:
                 print(sampname, file=_out)
                 sample = inst2sam[sampname]
                 not_printed = True
                 for note in self.all_notes[sample]:
                     tracknotes = self.all_note_tracks[sample][note]
-                    line = sep.join(tracknotes[eventindex:eventindex+interval])
+                    line = sep.join(tracknotes[eventindex:eventindex + interval])
                     if clear_empty and line == empty:
                         pass
                     else:
                         print('  ', line, file=_out)
                         not_printed = False
                 if not_printed:
-                    print('  ', empty, file=_out)
+                    print('  ', shared.empty_note, file=_out)
                 print('', file=_out)
 
             sep = ''
@@ -492,14 +483,14 @@ class ExtModule:
             not_printed = True
             for inst in printseq:
                 tracknotes = self.all_drum_events[inst]
-                line = sep.join(tracknotes[eventindex:eventindex+interval])
+                line = sep.join(tracknotes[eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print('  ', line, file=_out)
                     not_printed = False
             if not_printed:
-                print('  ', empty, file=_out)
+                print('  ', shared.empty_drums, file=_out)
             print('', file=_out)
 
             print('', file=_out)

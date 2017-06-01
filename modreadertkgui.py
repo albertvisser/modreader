@@ -32,22 +32,23 @@ class AskString(tk.Toplevel):
         tk.Label(frm, text=prompt).pack(side="top")
         self.text = tk.Entry(frm)
         self.text.pack(side="top")
-        bar = tk.Frame(frm)
-        bar.pack(fill="both", expand=True, side="top")
-        tk.Label(bar, text="").pack(side="left")
-        ok_button = tk.Button(bar, text="Ok", command=self.einde)
+        bbar = tk.Frame(frm)
+        bbar.pack(fill="both", expand=True, side="top")
+        tk.Label(bbar, text="").pack(side="left")
+        ok_button = tk.Button(bbar, text="Ok", command=self.einde)
         ok_button.pack(side="left", padx=5, pady=5)
         ok_button.bind("<Return>", self.einde)
         ## self.bind("<Ctrl+Return>", self.einde)
-        cancel_button = tk.Button(bar, text="Cancel", command=self.destroy)
+        cancel_button = tk.Button(bbar, text="Cancel", command=self.destroy)
         cancel_button.pack(side="left", padx=5, pady=5)
         cancel_button.bind("<Return>", self.destroy)
         ## self.bind("<Escape>", self.destroy)
-        tk.Label(bar, text="").pack(side="left")
+        tk.Label(bbar, text="").pack(side="left")
 
-    def einde(self, *args):
-        self.parent._text = self.text.get()
+    def einde(self):
+        self.parent.text_ = self.text.get()
         self.destroy()
+
 
 class Application(tk.Frame):
 
@@ -74,12 +75,12 @@ class Application(tk.Frame):
         frm.pack(fill="both", expand=True, side="top")
         tk.Label(frm, text="Select module file:", width=17).pack(side="left")
         self.filenaam = tk.StringVar()
-        self.vraag_modfile = ttk.Combobox(frm, width = 40)
-        self.vraag_modfile['values'] = [x for x  in self._mru_items]
+        self.vraag_modfile = ttk.Combobox(frm, width=40)
+        self.vraag_modfile['values'] = [x for x in self._mru_items]
         self.vraag_modfile['textvariable'] = self.filenaam
         self.vraag_modfile.pack(side=tk.LEFT, padx=5, pady=5)
         zoek_button = tk.Button(frm, text="Browse", command=self.zoekfile,
-            underline=0)
+                                underline=0)
         zoek_button.pack(side=tk.LEFT, padx=5)
         zoek_button.bind('<Return>', self.zoekfile)
         self.bind_all('<Alt-KeyPress-B>', self.zoekfile)
@@ -98,7 +99,7 @@ class Application(tk.Frame):
         tk.Label(frm, text="Mark Drum Samples:", width=17).pack(side="left")
         self.sample_list = tk.StringVar()
         self.list_samples = tk.Listbox(frm, listvariable=self.sample_list,
-            exportselection=False)
+                                       exportselection=False)
         self.list_samples['selectmode'] = 'extended'
         self.list_samples.pack(side="left")
 
@@ -118,7 +119,7 @@ class Application(tk.Frame):
         self.bind_all('<Alt-KeyPress-Left>', self.move_to_left)
         self.sample_marks = tk.StringVar()
         self.mark_samples = tk.Listbox(frm, listvariable=self.sample_marks,
-            exportselection=False)
+                                       exportselection=False)
         self.mark_samples['selectmode'] = 'extended'
         self.mark_samples.pack(side="left")
 
@@ -161,11 +162,11 @@ class Application(tk.Frame):
         back_button.bind('<Return>', self.quit)
         self.bind_all('<Control-KeyPress-Q>', self.quit)
 
-    def zoekfile(self, *args):
+    def zoekfile(self):
         """event handler voor 'zoek in directory'"""
         oupad = self.filenaam.get()
         if oupad == "":
-             oupad = '/home/albert/magiokis/data/mod'
+            oupad = '/home/albert/magiokis/data/mod'
         if oupad.endswith('.mod'):
             dir_, name = os.path.split(oupad)
         else:
@@ -175,7 +176,7 @@ class Application(tk.Frame):
             self.filenaam.set(pad)
             self._mru_items.add(pad)
 
-    def load_module(self, *args):
+    def load_module(self):
         pad = self.filenaam.get()
         if not pad:
             tkMessageBox.showinfo('Oops', 'You need to provide a filename')
@@ -191,7 +192,7 @@ class Application(tk.Frame):
         ## print(self.nondrums)
         ## print(self.drums)
 
-    def move_to_right(self, *args):
+    def move_to_right(self):
         """overbrengen naar rechterlijst zodat alleen de niet-drums overblijven
         """
         selected = self.list_samples.curselection()
@@ -208,7 +209,7 @@ class Application(tk.Frame):
         ## print(self.nondrums)
         ## print(self.drums)
 
-    def move_to_left(self, *args):
+    def move_to_left(self):
         """overbrengen naar linkerlijst (om alleen drumsamples over te houden)
         """
         selected = self.mark_samples.curselection()
@@ -225,7 +226,7 @@ class Application(tk.Frame):
         ## print(self.nondrums)
         ## print(self.drums)
 
-    def move_up(self, *args):
+    def move_up(self):
         """entry verplaatsen voor realiseren juiste volgorde
         """
         selected = self.mark_samples.curselection()
@@ -246,7 +247,7 @@ class Application(tk.Frame):
             self.mark_samples.insert(selindx - 1, item)
         ## print('after move down:', self.drums)
 
-    def move_down(self, *args):
+    def move_down(self):
         """entry verplaatsen voor realiseren juiste volgorde
         """
         selected = self.mark_samples.curselection()
@@ -267,7 +268,7 @@ class Application(tk.Frame):
             self.mark_samples.insert(selindx + 1, item)
         ## print('after move down:', self.drums)
 
-    def assign(self, *args):
+    def assign(self):
         """letter toekennen voor in display
         """
         selected = self.mark_samples.curselection()
@@ -281,20 +282,19 @@ class Application(tk.Frame):
             return
         ## print('\ninitial:', self.drums)
         selindx = selected[0]
-        self._text = ""
-        w = AskString(self, prompt='Enter letter(s) to be printed for "{}"'.format(
+        self.text_ = ""
+        win = AskString(self, prompt='Enter letter(s) to be printed for "{}"'.format(
             self.drums[selindx]))
-        w.focus_set()
-        w.grab_set()
-        w.wait_window()
-        if self._text:
+        win.focus_set()
+        win.grab_set()
+        win.wait_window()
+        if self.text_:
             inst = self.drums[selindx].split()[0]
-            inst += " ({})".format(self._text)
+            inst += " ({})".format(self.text_)
             self.mark_samples.delete(selindx)
             self.mark_samples.insert(selindx, inst)
             self.drums[selindx] = inst
         ## print('after assign:', self.drums)
-
 
     def create_files(self):
         if not self.loaded:
@@ -325,19 +325,19 @@ class Application(tk.Frame):
             pass
         datetimestamp = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
         with open(os.path.join(newdir, '{}-basic'.format(datetimestamp)),
-                "w") as out:
+                  "w") as out:
             self.loaded.print_module_details(out)
         if self.drums:
             with open(os.path.join(newdir, '{}-drums'.format(datetimestamp)),
-                    "w") as out:
+                      "w") as out:
                 self.loaded.print_drums(self.drums, printseq, out)
         for number, name in self.nondrums:
             with open(os.path.join(newdir, '{}-{}'.format(datetimestamp, name)),
-                    "w") as out:
+                      "w") as out:
                 self.loaded.print_instrument(number, out)
         tkMessageBox.showinfo('Yay', 'Done')
 
-    def quit(self, *args):
+    def quit(self):
         with open('mru_files', 'w') as _out:
             for name in self._mru_items:
                 _out.write(name + '\n')

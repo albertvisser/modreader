@@ -2,78 +2,12 @@ import sys
 import collections
 import pprint
 import shared
-
-"""
-Dit is een of ander xml-achtig formaat dat ook een soort van elementen kent
-deze beginnen met <elementnaam en eindigen met > op een volgende regel
-Er wordt wel ingesprogen dus beginnen en eindes zijn makkelijk te matchen
-De voor mij interessantste stukken zijn:
-<REAPER_PROJECT 0.1
-  ...
-  <TRACK '{604D0845-C894-4422-B3F7-3CD51F610A63}'
-    NAME "Heavymetal - alleen_al"
-    ...
-    <ITEM
-      ...
-      NAME "Heavymetal - alleen_al.MID"
-      ...
-      <SOURCE MIDI
-        HASDATA 1 384 QN (zie onder)
-        E 0 c0 14 00
-        ...
-      >
-    >
-  >
->
+import logging
 
 
-    midi (gedumpt met python-midi)                           reaper
-                                                            <SOURCE MIDI
-   midi.Pattern(format=1, resolution=384,                     HASDATA 1 384 QN
-                                                                E 0 c0 14 00
-   midi.ControlChangeEvent(tick=0, channel=0, data=[32, 0]),    E 0 b0 20 00
-   midi.ControlChangeEvent(tick=0, channel=0, data=[0, 11]),    E 0 b0 00 0b
-   midi.ProgramChangeEvent(tick=0, channel=0, data=[20]),
-   midi.NoteOnEvent(tick=0, channel=0, data=[64, 109]),         E 0 90 40 6d
-   midi.NoteOffEvent(tick=244, channel=0, data=[64, 109]),      E 244 80 40 6d
-   midi.NoteOnEvent(tick=332, channel=0, data=[64, 109]),       E 332 90 40 6d
-   midi.NoteOffEvent(tick=244, channel=0, data=[64, 109]),      E 244 80 40 6d
-   midi.NoteOnEvent(tick=140, channel=0, data=[64, 109]),       E 140 90 40 6d
-   midi.NoteOffEvent(tick=192, channel=0, data=[64, 109]),      E 192 80 40 6d
-   midi.NoteOnEvent(tick=0, channel=0, data=[66, 109]),         E 0 90 42 6d
-   midi.NoteOffEvent(tick=216, channel=0, data=[66, 109]),      E 216 80 42 6d
-   midi.NoteOnEvent(tick=168, channel=0, data=[67, 109]),       E 168 90 43 6d
-   midi.NoteOffEvent(tick=204, channel=0, data=[67, 109]),      E 204 80 43 6d
-   midi.NoteOnEvent(tick=372, channel=0, data=[66, 109]),       E 372 90 42 6d
-   midi.NoteOffEvent(tick=216, channel=0, data=[66, 109]),      E 216 80 42 6d
-   midi.NoteOnEvent(tick=360, channel=0, data=[64, 109]),       E 360 90 40 6d
-   midi.NoteOffEvent(tick=244, channel=0, data=[64, 109]),      E 244 80 40 6d
-   midi.NoteOnEvent(tick=140, channel=0, data=[62, 109]),       E 140 90 3e 6d
-   midi.NoteOffEvent(tick=274, channel=0, data=[62, 109]),      E 274 80 3e 6d
-   midi.NoteOnEvent(tick=302, channel=0, data=[62, 109]),       E 302 90 3e 6d
-   midi.NoteOffEvent(tick=274, channel=0, data=[62, 109]),      E 274 80 3e 6d
-   midi.NoteOnEvent(tick=110, channel=0, data=[62, 109]),       E 110 90 3e 6d
-   midi.NoteOffEvent(tick=192, channel=0, data=[62, 109]),      E 192 80 3e 6d
-   midi.NoteOnEvent(tick=0, channel=0, data=[64, 109]),         E 0 90 40 6d
-   midi.NoteOffEvent(tick=244, channel=0, data=[64, 109]),      E 244 80 40 6d
-   midi.NoteOnEvent(tick=140, channel=0, data=[62, 109]),       E 140 90 3e 6d
-   midi.NoteOffEvent(tick=274, channel=0, data=[62, 109]),      E 274 80 3e 6d
+def log(inp):
+    logging.info(inp)
 
-vreemd genoeg is in de reaper data de "tick value" decimaal en de rest in hex...
-
-bij de drums zie ik dit:
-   midi.ControlChangeEvent(tick=0, channel=9, data=[32, 0]),    E 0 c9 06 00
-   midi.ControlChangeEvent(tick=0, channel=9, data=[0, 11]),    E 0 b9 20 00
-   midi.ProgramChangeEvent(tick=0, channel=9, data=[6]),        E 0 b9 00 0b
-   midi.NoteOnEvent(tick=0, channel=9, data=[42, 121]),         E 0 99 2a 79
-   midi.NoteOnEvent(tick=0, channel=9, data=[35, 112]),         E 0 99 23 70
-   midi.NoteOffEvent(tick=78, channel=9, data=[42, 121]),       E 78 89 2a 79
-   midi.NoteOffEvent(tick=82, channel=9, data=[35, 112]),       E 82 89 23 70
-het lijkt erop dat die derde waarde niet alleen het type event aangeeft maar ook
-het channel number
-"""
-empty_event = {True: shared.empty_drums, False: shared.empty_note}
-sep = {True: '', False: ' '}
 
 class RppFile:
 
@@ -86,8 +20,8 @@ class RppFile:
             '<SOURCE': self.start_source,
             'HASDATA': self.start_data,
             'E': self.process_event,
-            '>': self.end_stuff,
-            }
+            '>': self.end_stuff}
+
         self.weirdness = []
         # mapping van naam op trackid(s)
         self.instruments = {}
@@ -101,7 +35,7 @@ class RppFile:
           <TRACK '{604D0845-C894-4422-B3F7-3CD51F610A63}'
         """
         ## print("in start_track:", data)
-        self.current_track = data[1:-1] # do I need this if I use instrument numbers?
+        self.current_track = data[1:-1]     # do I need this if I use instrument numbers?
         self.in_track = True
 
     def process_name(self, data):
@@ -160,20 +94,21 @@ class RppFile:
         ## print(pitch)
         velocity = data[3]
         self.timing += tick
-        if self.track_start or evtype == 'c': # start new pattern
+        if self.track_start or evtype == 'c':   # start new pattern
             if self.pattern_events:
                 self.patterns[self.instrument_number].append((self.pattern_no,
-                    self.pattern_props, self.pattern_events))
+                                                              self.pattern_props,
+                                                              self.pattern_events))
                 self.pattern_events = collections.defaultdict(list)
             self.pattern_no += 1
             self.pattern_start = 0 if self.track_start else self.timing
             ## self.pattern_start = self.timing
-            self.pattern_list[self.instrument_number].append((self.pattern_no,
-                self.pattern_start // (self.pattern_props['resolution'] // 4)))
+            start = self.pattern_start // (self.pattern_props['resolution'] // 4)
+            self.pattern_list[self.instrument_number].append((self.pattern_no, start))
             if self.track_start: self.track_start = False
-        if evtype != '9': # we're only interested in `note on`
+        if evtype != '9':   # we're only interested in `note on`
             return
-        if velocity == '00': # set volume to zero == note off
+        if velocity == '00':    # set volume to zero == note off
             return
         now = self.timing - self.pattern_start
         now = now // (self.pattern_props['resolution'] // 4)
@@ -190,7 +125,8 @@ class RppFile:
         """
         if self.in_source:
             self.patterns[self.instrument_number].append((self.pattern_no,
-                self.pattern_props, self.pattern_events))
+                                                          self.pattern_props,
+                                                          self.pattern_events))
             self.in_source = False
         elif self.in_pattern:
             self.in_pattern = False
@@ -228,26 +164,21 @@ class RppFile:
             new_pattern_list_temp = {}
             pattix = 0
 
-            ## with open('/tmp/rpp_patterns_inst_{}'.format(track), 'w') as _o:
-                ## pprint.pprint(self.patterns[track], stream=_o)
-            ## with open('/tmp/rpp_patterns_list_inst_{}'.format(track), 'w') as _o:
-                ## pprint.pprint(pattern_start_list, stream=_o)
-
-            for ix, item in enumerate(pattern_start_list):
+            for item in pattern_start_list:
 
                 oldpattnum, oldpattstart = item
                 # is die pattix niet = oldpattnum - 1?
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][pattix]
                 if oldpattnum2 > oldpattnum or not oldpattdata:
-                    continue # no data for pattern (just event c0 after event c0)
-                elif oldpattnum2 != oldpattnum: # should never happen
+                    continue    # no data for pattern (just event c0 after event c0)
+                elif oldpattnum2 != oldpattnum:     # should never happen
                     with open('/tmp/rpp_patterns', 'w') as _o:
                         pprint.pprint(self.patterns, stream=_o)
                     with open('/tmp/rpp_pattern_list', 'w') as _o:
                         pprint.pprint(self.pattern_list, stream=_o)
-                    raise ValueError('mismatch on track {} pattern {} met pattern {}, data '
-                        'dumped to /tmp'.format(track, oldpattnum, oldpattnum2))
-
+                    raise ValueError('mismatch on track {} pattern {} met pattern {}, '
+                                     'data dumped to /tmp'.format(track, oldpattnum,
+                                                                  oldpattnum2))
                 newpattdata = collections.defaultdict(dict)
                 for pitch, events in oldpattdata.items():
                     ## newpattnum = 0
@@ -258,7 +189,7 @@ class RppFile:
                     pattstarts.add((low_event, high_event))
                     while high_event <= highest:
                         new_events = [x - low_event for x in events
-                            if low_event <= x < high_event]
+                                      if low_event <= x < high_event]
                         if new_events:
                             newpattstart = oldpattstart + low_event
                             newpattdata[newpattstart][pitch] = new_events
@@ -273,18 +204,9 @@ class RppFile:
 
                 pattix += 1
 
-            ## with open('/tmp/rpp_patterns_inst_{}_tem_'.format(track), 'w') as _o:
-                ## pprint.pprint(oldpattdata, stream=_o)
-            ## with open('/tmp/rpp_patterns_inst_{}_tem0'.format(track), 'w') as _o:
-                ## pprint.pprint(newpattdata, stream=_o)
-            ## with open('/tmp/rpp_patterns_inst_{}_temp'.format(track), 'w') as _o:
-                ## pprint.pprint(new_patterns_temp, stream=_o)
-            ## with open('/tmp/rpp_patterns_list_inst_{}_temp'.format(track), 'w') as _o:
-                ## pprint.pprint(new_pattern_list_temp, stream=_o)
-
             previous_patterns = []
             newnum = 0
-            for ix, item in enumerate(new_patterns_temp):
+            for item in new_patterns_temp:
                 patt, props, data = item
                 start = new_pattern_list_temp[patt]
                 if not data: continue
@@ -313,8 +235,7 @@ class RppFile:
         self.old_pattern_list = self.pattern_list
         self.pattern_list = new_pattern_list
         self.instruments = {x: y for x, y in self.instruments.items() if x in
-            self.pattern_list}
-
+                            self.pattern_list}
 
     def print_general_data(self, full=False, stream=sys.stdout):
         data = shared.build_header("project", self.filename)
@@ -325,7 +246,7 @@ class RppFile:
             for item, value in self.pattern_list.items():
                 patt_list = [y for x, y in value]
                 data.extend(shared.build_patt_list(item, self.instruments[item],
-                    patt_list))
+                                                   patt_list))
         for line in data:
             print(line.rstrip(), file=stream)
 
@@ -347,17 +268,17 @@ class RppFile:
                     else:
                         key = shared.standard_printseq.index(notestr)
                 else:
-                    notestr = shared.get_note_name(key) #  - 12)
+                    notestr = shared.get_note_name(key)     # (was - 12)
                 factor = shared.tick_factor
                 for i in range(factor * (note_events[-1] // factor + 1)):
                     if i in note_events:
                         events.append(notestr)
                     else:
-                        events.append(empty_event[is_drumtrack])
+                        events.append(shared.empty[is_drumtrack])
                     if (i + 1) % factor == 0:
                         seqnum += 1
-                        if events != factor * [empty_event[is_drumtrack]]:
-                            delim = sep[is_drumtrack]
+                        if events != factor * [shared.empty[is_drumtrack]]:
+                            delim = shared.sep[is_drumtrack]
                             printables[seqnum].append((key, delim.join(events)))
                         events = []
             for key, pattern_lines in sorted(printables.items()):
@@ -388,11 +309,11 @@ class RppFile:
                     if is_drumtrack:
                         notestr = shared.get_inst_name(note + shared.note2drums)
                         if notestr == '?':
-                            unlettered.add('no letter yet for `{}`'.format(
+                            self.unlettered.add('no letter yet for `{}`'.format(
                                 shared.gm_drums[note + shared.note2drums][1]))
                     else:
                         notestr = shared.get_note_name(note)
-                    to_extend = pattlen * [empty_event[is_drumtrack]]
+                    to_extend = pattlen * [shared.empty[is_drumtrack]]
                     if pattnum != -1 and note in pattdict[pattnum]:
                         for event in pattdict[pattnum][note]:
                             to_extend[event] = notestr
@@ -400,33 +321,30 @@ class RppFile:
 
     def print_instrument_full(self, trackno, opts, stream=sys.stdout):
         interval, clear_empty = opts
-        data = collections.defaultdict(list)
-        unlettered = set()
         is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
         if is_drumtrack:
             interval *= 2
 
         full_length = sum([y for x, y in self.pattstarts])
-        empty = sep[is_drumtrack].join(interval * [empty_event[is_drumtrack]])
+        empty = shared.sep[is_drumtrack].join(interval * [shared.empty[is_drumtrack]])
         all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
         for eventindex in range(0, full_length, interval):
             not_printed = True
             for note in all_notes:
-                line = sep[is_drumtrack].join(self.all_note_tracks[trackno][note]
-                    [eventindex:eventindex+interval])
+                line = shared.sep[is_drumtrack].join(self.all_note_tracks[trackno][note]
+                                                     [eventindex:eventindex + interval])
                 if clear_empty and line == empty:
                     pass
                 else:
                     print(line, file=stream)
                     not_printed = False
             if not_printed:
-                print(empty, file=stream)
+                print(shared.empty[is_drumtrack], file=stream)
             print('', file=stream)
 
-    def print_all_instruments_full(self, opts, stream=sys.stdout):
-        interval, clear_empty, instlist = opts
+    def print_all_instruments_full(self, instlist, opts, stream=sys.stdout):
+        interval, clear_empty = opts
         inst2sam = {y: x for x, y in self.instruments.items()}
-        data = collections.defaultdict(list)
         full_length = sum([y for x, y in self.pattstarts])
         for eventindex in range(0, full_length, interval):
             for instname in instlist:
@@ -436,21 +354,19 @@ class RppFile:
                     print('drums', file=stream)
                 else:
                     print(instname, file=stream)
-                delim = sep[is_drumtrack]
-                empty = delim.join(interval * [empty_event[is_drumtrack]])
+                delim = shared.sep[is_drumtrack]
+                empty = delim.join(interval * [shared.empty[is_drumtrack]])
                 all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
                 not_printed = True
                 for note in all_notes:
                     line = delim.join(self.all_note_tracks[trackno][note]
-                        [eventindex:eventindex+interval])
+                                      [eventindex:eventindex + interval])
                     if clear_empty and line == empty:
                         pass
                     else:
                         print('  ', line, file=stream)
                         not_printed = False
                 if not_printed:
-                    print('  ', empty, file=stream)
+                    print('  ', shared.empty[is_drumtrack], file=stream)
                 print('', file=stream)
             print('', file=stream)
-
-

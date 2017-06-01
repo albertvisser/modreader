@@ -3,11 +3,13 @@ import os
 import subprocess
 import csv
 import collections
-import pprint
 import shared
+import logging
 
-sep = {True: '', False: ' '}
-empty = {True: shared.empty_drums, False: shared.empty_note}
+
+def log(inp):
+    logging.info(inp)
+
 
 class MidiFile:
 
@@ -22,7 +24,7 @@ class MidiFile:
     def read(self):
         outfile = os.path.basename(self.filename).replace('.mid', '.csv')
         outfile = os.path.join('/tmp', outfile)
-        result = subprocess.run(['midicsv', self.filename, outfile])
+        subprocess.run(['midicsv', self.filename, outfile])
         trackdata = collections.defaultdict(set)
         with open(outfile) as _in:
             csvdata = csv.reader(_in)
@@ -42,8 +44,8 @@ class MidiFile:
                         self.instruments[track][1] = int(data[0]) + 1
                     elif int(data[0]) + 1 != self.instruments[track][1]:
                         self.weirdness.append('in-track channel change on track '
-                            '{} at time {}'.format(track, tick))
-                    if int(data[2]) != 0: # don't count velocity set to 0
+                                              '{} at time {}'.format(track, tick))
+                    if int(data[2]) != 0:   # don't count velocity set to 0
                         trackdata[track].add((tick, int(data[1])))
         duration = self.resolution // 4
         for trackno, track in trackdata.items():
@@ -70,16 +72,11 @@ class MidiFile:
             if not val[1]: to_pop.append(key)
         for key in to_pop:
             self.instruments.pop(key)
-        ## with open('/tmp/mid-patterns', 'w') as _o:
-            ## pprint.pprint(self.instruments, stream=_o)
-            ## pprint.pprint(self.patterns, stream=_o)
-
-
 
     def print_general_data(self, full=False, stream=sys.stdout):
         data = shared.build_header("module", self.filename)
         data.extend(shared.build_inst_list([(x, '{} (chn. {})'.format(y[0], y[1]))
-            for x, y in self.instruments.items()]))
+                                            for x, y in self.instruments.items()]))
         if self.weirdness:
             data.extend([''] + [x for x in self.weirdness])
         if not full:
@@ -95,11 +92,10 @@ class MidiFile:
                         patt_list.append(num + 1)
                         i += 1
                 data.extend(shared.build_patt_list(track, self.instruments[track][0],
-                    patt_list))
+                                                   patt_list))
 
         for item in data:
             print(item.rstrip(), file=stream)
-
 
     def print_instrument(self, trackno, stream=sys.stdout):
         is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
@@ -128,25 +124,26 @@ class MidiFile:
                 index = 0
                 for event in pattern[pitch]:
                     while index < event:
-                        printstr.append(empty[is_drumtrack])
+                        printstr.append(shared.empty[is_drumtrack])
                         index += 1
                     printstr.append(notestr)
                     index += 1
                 while index < shared.per_line:
-                    printstr.append(empty[is_drumtrack])
+                    printstr.append(shared.empty[is_drumtrack])
                     index += 1
                 if not is_drumtrack:
                     printstr[0] = printstr[0][:-1]
-                printables.append((key, sep[is_drumtrack].join(printstr)))
+                printables.append((key, shared.sep[is_drumtrack].join(printstr)))
             printables.sort()
             if not is_drumtrack: printables.reverse()
             for key, line in printables:
                 print(line, file=stream)
             print('', file=stream)
-        for x in unlettered: print(x, file=stream)
+        for x in unlettered:
+            print(x, file=stream)
         return unlettered
 
-    def prepare_print_instruments(self, opts):
+    def prepare_print_instruments(self):
         self.all_track_notes = collections.defaultdict(
             lambda: collections.defaultdict(list))
         self.all_notevals = collections.defaultdict(set)
@@ -169,7 +166,7 @@ class MidiFile:
                 if pattnum == -1:
                     for note in self.all_notevals[trackno]:
                         self.all_track_notes[trackno][note].extend(
-                            [empty[is_drumtrack]] * shared.per_line)
+                            [shared.empty[is_drumtrack]] * shared.per_line)
                     continue
                 for note in self.all_notevals[trackno]:
                     if note in patterns[pattnum]:
@@ -178,15 +175,15 @@ class MidiFile:
                             if tick in events:
                                 if is_drumtrack:
                                     to_append = shared.get_inst_name(note +
-                                        shared.note2drums)
+                                                                     shared.note2drums)
                                 else:
                                     to_append = shared.get_note_name(note)
                             else:
-                                to_append = empty[is_drumtrack]
+                                to_append = shared.empty[is_drumtrack]
                             self.all_track_notes[trackno][note].append(to_append)
                     else:
                         self.all_track_notes[trackno][note].extend(
-                            [empty[is_drumtrack]] * shared.per_line)
+                            [shared.empty[is_drumtrack]] * shared.per_line)
             test = len(self.all_track_notes[trackno][note])
             ## print(test)
             if test > self.total_length:
@@ -196,35 +193,36 @@ class MidiFile:
         interval, clear_empty = opts
         is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
         all_track_notes = self.all_track_notes[trackno]
-        all_notevals = self.all_notevals[trackno]
+        ## all_notevals = self.all_notevals[trackno]
 
         if is_drumtrack:
             interval *= 2
-            notes_to_show = [x for x in sorted(self.all_notevals[trackno],
+            notes_to_show = [x for x in sorted(
+                self.all_notevals[trackno],
                 key=lambda x: shared.standard_printseq.index(shared.get_inst_name(
-                x + shared.note2drums)))]
+                    x + shared.note2drums)))]
         else:
             notes_to_show = [x for x in reversed(sorted(self.all_notevals[trackno]))]
-        empty_line = sep[is_drumtrack].join(interval * [empty[is_drumtrack]])
+        empty_line = shared.sep[is_drumtrack].join(interval * [shared.empty[is_drumtrack]])
 
         for eventindex in range(0, self.total_length, interval):
             not_printed = True
             for note in notes_to_show:
                 notes = all_track_notes[note]
-                line = sep[is_drumtrack].join(notes[eventindex:eventindex+interval])
+                line = shared.sep[is_drumtrack].join(
+                    notes[eventindex:eventindex + interval])
                 if clear_empty and line == empty_line:
                     pass
                 else:
                     print(line, file=stream)
                     not_printed = False
             if not_printed:
-                print(empty[is_drumtrack], file=stream)
+                print(shared.empty[is_drumtrack], file=stream)
             print('', file=stream)
 
+    def print_all_instruments_full(self, instlist, opts, stream=sys.stdout):
 
-    def print_all_instruments_full(self, opts, stream=sys.stdout):
-
-        interval, clear_empty, instlist = opts
+        interval, clear_empty = opts
         inst2sam = {y[0]: (x, y) for x, y in self.instruments.items()}
 
         for eventindex in range(0, self.total_length, interval):
@@ -232,13 +230,14 @@ class MidiFile:
             for instname in instlist:
                 trackno, trackdata = inst2sam[instname]
                 is_drumtrack = trackdata[1] == shared.drum_channel
-                empty_line = sep[is_drumtrack].join(interval * [empty[is_drumtrack]])
+                empty_line = shared.sep[is_drumtrack].join(
+                    interval * [shared.empty[is_drumtrack]])
                 all_track_notes = self.all_track_notes[trackno]
                 all_notevals = self.all_notevals[trackno]
 
                 if is_drumtrack:
-                    notes_to_show = [x for x in sorted(all_notevals,
-                        key=lambda x: shared.standard_printseq.index(
+                    notes_to_show = [x for x in sorted(
+                        all_notevals, key=lambda x: shared.standard_printseq.index(
                             shared.get_inst_name(x + shared.note2drums)))]
                     print('drums:', file=stream)
                 else:
@@ -248,7 +247,7 @@ class MidiFile:
                 not_printed = True
                 for note in notes_to_show:
                     notes = all_track_notes[note]
-                    line = sep[is_drumtrack].join(
+                    line = shared.sep[is_drumtrack].join(
                         notes[eventindex:eventindex + interval])
                     if clear_empty and (line == empty_line or not line):
                         pass
@@ -256,7 +255,6 @@ class MidiFile:
                         print('  ', line, file=stream)
                         not_printed = False
                 if not_printed:
-                    print('  ', empty[is_drumtrack], file=stream)
+                    print('  ', shared.empty[is_drumtrack], file=stream)
                 print('', file=stream)
             print('', file=stream)
-
