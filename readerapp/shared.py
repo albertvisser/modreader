@@ -13,7 +13,7 @@ def log(inp):
 
 options = configparser.ConfigParser()
 options.optionxform = lambda x: x
-optionsfile = os.path.join(os.path.dirname(__file__), 'options.ini')
+optionsfile = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'options.ini')
 options.read(optionsfile)
 standard_printseq = options['general']['printseq']
 gm_drums = [(y, x) for x, y in options['gm_drums'].items()]

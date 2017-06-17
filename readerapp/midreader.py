@@ -3,8 +3,8 @@ import os
 import subprocess
 import csv
 import collections
-import shared
 import logging
+import readerapp.shared as shared
 
 
 def log(inp):
@@ -203,15 +203,19 @@ class MidiFile:
                     x + shared.note2drums)))]
         else:
             notes_to_show = [x for x in reversed(sorted(self.all_notevals[trackno]))]
-        empty_line = shared.sep[is_drumtrack].join(interval * [shared.empty[is_drumtrack]])
+        empty_line = shared.sep[is_drumtrack].join(
+            interval * [shared.empty[is_drumtrack]])
 
         for eventindex in range(0, self.total_length, interval):
+            if eventindex + interval > self.total_length:
+                empty_line = shared.sep[is_drumtrack].join(
+                    (self.total_length - eventindex) * [shared.empty[is_drumtrack]])
             not_printed = True
             for note in notes_to_show:
                 notes = all_track_notes[note]
                 line = shared.sep[is_drumtrack].join(
                     notes[eventindex:eventindex + interval])
-                if clear_empty and line == empty_line:
+                if clear_empty and (line == empty_line or not line):
                     pass
                 else:
                     print(line, file=stream)
@@ -232,6 +236,9 @@ class MidiFile:
                 is_drumtrack = trackdata[1] == shared.drum_channel
                 empty_line = shared.sep[is_drumtrack].join(
                     interval * [shared.empty[is_drumtrack]])
+                if eventindex + interval > self.total_length:
+                    empty_line = shared.sep[is_drumtrack].join(
+                        (self.total_length - eventindex) * [shared.empty[is_drumtrack]])
                 all_track_notes = self.all_track_notes[trackno]
                 all_notevals = self.all_notevals[trackno]
 

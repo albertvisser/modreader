@@ -1,8 +1,8 @@
 import sys
 import struct
 import collections
-import shared
 import logging
+import readerapp.shared as shared
 
 
 def log(inp):
@@ -346,6 +346,7 @@ class MedModule:
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
+                    if not events: continue
                     print(shared.line_start, end='', file=_out)
                     for i in range(pattlen):
                         printable = inst if i in events else shared.empty_drums
@@ -363,18 +364,18 @@ class MedModule:
             print(shared.patt_start.format(pattnum + 1), file=_out)
             pattlen = pattern['len']
             for note in reversed(sorted([x for x in pattern if x != 'len'])):
-                print(shared.line_start, end='', file=_out)
                 events = pattern[note]
-
-                printable = []
-                for tick in range(pattlen):
-                    if tick in events:
-                        corr = note + 3 * shared.octave_length - 1  # comparability
-                        next_note = shared.get_note_name(corr)
-                    else:
-                        next_note = shared.empty_note
-                    printable.append(next_note)
-                print(' '.join(printable), file=_out)
+                if events:
+                    print(shared.line_start, end='', file=_out)
+                    printable = []
+                    for tick in range(pattlen):
+                        if tick in events:
+                            corr = note + 3 * shared.octave_length - 1  # comparability
+                            next_note = shared.get_note_name(corr)
+                        else:
+                            next_note = shared.empty_note
+                        printable.append(next_note)
+                    print(' '.join(printable), file=_out)
             print('', file=_out)
 
     def prepare_print_drums(self, printseq):
@@ -399,11 +400,13 @@ class MedModule:
         empty = interval * shared.empty_drums
         total_length = sum(self.all_pattern_lengths)
         for eventindex in range(0, total_length, interval):
+            if eventindex + interval > total_length:
+                empty = (total_length - eventindex) * shared.empty_drums
             not_printed = True
             for inst in printseq:
                 line = ''.join(
                     self.all_drum_tracks[inst][eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                if clear_empty and (line == empty or not line):
                     pass
                 else:
                     print(line, file=_out)
@@ -454,11 +457,14 @@ class MedModule:
         empty = sep.join(interval * [shared.empty_note])
         total_length = sum(self.all_pattern_lengths)
         for eventindex in range(0, total_length, interval):
+            if eventindex + interval > total_length:
+                empty = sep.join(
+                    (total_length - eventindex) * [shared.empty_note])
             not_printed = True
             for note in self.all_notes[sample]:
                 events = self.all_note_tracks[sample][note]
                 line = sep.join(events[eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                if clear_empty and (line == empty or not line):
                     pass
                 else:
                     print(line, file=_out)
@@ -475,13 +481,16 @@ class MedModule:
 
             sep = ' '
             empty = sep.join(interval * [shared.empty_note])
+            if eventindex + interval > total_length:
+                empty = sep.join(
+                    (total_length - eventindex) * [shared.empty_note])
             for _, sample in instlist:
                 print('{}:'.format(sample), file=_out)
                 not_printed = True
                 for note in self.all_notes[sample]:
                     notes = self.all_note_tracks[sample][note]
                     line = sep.join(notes[eventindex:eventindex + interval])
-                    if clear_empty and line == empty:
+                    if clear_empty and (line == empty or not line):
                         pass
                     else:
                         print('  ', line, file=_out)
@@ -492,12 +501,15 @@ class MedModule:
 
             sep = ''
             empty = sep.join(interval * [shared.empty_drums])
+            if eventindex + interval > total_length:
+                empty = sep.join(
+                    (total_length - eventindex) * [shared.empty_drums])
             print('drums:', file=_out)
             not_printed = True
             for inst in printseq:
                 line = sep.join(
                     self.all_drum_tracks[inst][eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                if clear_empty and (line == empty or not line):
                     pass
                 else:
                     print('  ', line, file=_out)

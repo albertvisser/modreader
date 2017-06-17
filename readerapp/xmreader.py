@@ -1,8 +1,8 @@
 import sys
 import struct
 import collections
-import shared
 import logging
+import readerapp.shared as shared
 
 
 def log(inp):
@@ -310,8 +310,8 @@ class ExtModule:
                     elif pattlens[ix] != pattlen:
                         print('Alarm! Verschillende lengtes voor pattern event', ix,
                               file=_out)
-        self.pattlens = pattlens
-        self.full_length = sum((x for x in self.pattlens))
+        self.pattern_lengths = pattlens
+        self.full_length = sum((x for x in self.pattern_lengths))
 
         if not full:
             data.extend(shared.build_patt_header())
@@ -338,6 +338,7 @@ class ExtModule:
             for inst in printseq:
                 for key, events in pattern.items():
                     if key != inst: continue
+                    if not events: continue
                     print(shared.line_start, end='', file=_out)
                     for i in range(pattlen):
                         printable = inst if i in events else shared.empty_drums
@@ -355,25 +356,25 @@ class ExtModule:
             print(shared.patt_start.format(pattnum + 1), file=_out)
             pattlen = pattern.pop('len')
             for note in reversed(sorted([x for x in pattern])):
-                print(shared.line_start, end='', file=_out)
                 events = pattern[note]
-
-                printable = []
-                for tick in range(pattlen):
-                    if tick in events:
-                        corr = int(note) - 1    # comparability
-                        next_note = shared.get_note_name(corr)
-                    else:
-                        next_note = shared.empty_note
-                    printable.append(next_note)
-                print(' '.join(printable), file=_out)
+                if events:
+                    print(shared.line_start, end='', file=_out)
+                    printable = []
+                    for tick in range(pattlen):
+                        if tick in events:
+                            corr = int(note) - 1    # comparability
+                            next_note = shared.get_note_name(corr)
+                        else:
+                            next_note = shared.empty_note
+                        printable.append(next_note)
+                    print(' '.join(printable), file=_out)
             print('', file=_out)
 
     def prepare_print_drums(self, printseq):
         self.all_drum_events = collections.defaultdict(list)
         ## print(self.initial_patterns, file=_out)
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
-            pattlen = self.pattlens[pattseq]
+            pattlen = self.pattern_lengths[pattseq]
             initial_patt = pattlen * [shared.empty_drums]
             for inst in printseq:
                 pattdata = initial_patt[:]
@@ -389,11 +390,13 @@ class ExtModule:
         empty = interval * shared.empty_drums
 
         for eventindex in range(0, self.full_length, interval):
+            if eventindex + interval > self.full_length:
+                empty = (self.full_length - eventindex) * shared.empty_drums
             not_printed = True
             for inst in printseq:
                 line = ''.join(
                     self.all_drum_events[inst][eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                if clear_empty and (line == empty or not line):
                     pass
                 else:
                     print(line, file=_out)
@@ -416,7 +419,7 @@ class ExtModule:
                 x for x in reversed(sorted(self.all_notes[sample]))]
 
             for pattseq, pattnum in enumerate(self.playseqs[sample]):
-                pattlen = self.pattlens[pattseq]
+                pattlen = self.pattern_lengths[pattseq]
                 if pattnum == -1:
                     for note in self.all_notes[sample]:
                         self.all_note_tracks[sample][note].extend(
@@ -440,11 +443,14 @@ class ExtModule:
         empty = sep.join(interval * [shared.empty_note])
 
         for eventindex in range(0, self.full_length, interval):
+            if eventindex + interval > self.full_length:
+                empty = sep.join(
+                    (self.full_length - eventindex) * [shared.empty_note])
             not_printed = True
             for note in self.all_notes[sample]:
                 tracknotes = self.all_note_tracks[sample][note]
                 line = sep.join(tracknotes[eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                if clear_empty and (line == empty or not line):
                     pass
                 else:
                     print(line, file=_out)
@@ -461,6 +467,9 @@ class ExtModule:
 
             sep = ' '
             empty = sep.join(interval * [shared.empty_note])
+            if eventindex + interval > self.full_length:
+                empty = sep.join(
+                    (self.full_length - eventindex) * [shared.empty_note])
             for _, sampname in samplist:
                 print(sampname, file=_out)
                 sample = inst2sam[sampname]
@@ -468,7 +477,7 @@ class ExtModule:
                 for note in self.all_notes[sample]:
                     tracknotes = self.all_note_tracks[sample][note]
                     line = sep.join(tracknotes[eventindex:eventindex + interval])
-                    if clear_empty and line == empty:
+                    if clear_empty and (line == empty or not line):
                         pass
                     else:
                         print('  ', line, file=_out)
@@ -479,12 +488,14 @@ class ExtModule:
 
             sep = ''
             empty = interval * shared.empty_drums
+            if eventindex + interval > self.full_length:
+                empty = (self.full_length - eventindex) * shared.empty_drums
             print('drums:', file=_out)
             not_printed = True
             for inst in printseq:
                 tracknotes = self.all_drum_events[inst]
                 line = sep.join(tracknotes[eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                if clear_empty and (line == empty or not line):
                     pass
                 else:
                     print('  ', line, file=_out)

@@ -15,17 +15,17 @@ creates a collection of files containing:
 import sys
 import os.path
 import datetime
+import logging
 import PyQt5.QtWidgets as qtw
 ## import PyQt5.QtGui as gui
 import PyQt5.QtCore as core
-import shared
-import modreader
-import midreader
-import medreader
-import mmpreader
-import rppreader
-import xmreader
-import logging
+import readerapp.shared as shared
+import readerapp.modreader as modreader
+import readerapp.midreader as midreader
+import readerapp.medreader as medreader
+import readerapp.mmpreader as mmpreader
+import readerapp.rppreader as rppreader
+import readerapp.xmreader  as xmreader
 
 
 def log(inp):
@@ -636,20 +636,24 @@ class MainFrame(qtw.QWidget):
         self.loaded.prepare_print_drums(printseq)
         options = (self.max_events.value(), self.check_nonempty.isChecked())
         if self.check_allinone.isChecked():
+            druminst = [(x, y) for x, y in drums if len(y) == 1]
+            log('calling print_all_instruments_full with args {} {} {} '
+                '{} {}'.format(nondrums, druminst, printseq, options,
+                self.get_general_filename()))
             with open(self.get_general_filename(), 'a') as _out:
-                self.loaded.print_all_instruments_full(nondrums, drums, printseq,
+                self.loaded.print_all_instruments_full(nondrums, druminst, printseq,
                                                        options, _out)
             return
         if drums:
             with open(self.get_drums_filename(), "w") as out:
                 if self.check_full.isChecked():
-                    self.loaded.print_drums_full(printseq, options[:2], out)
+                    self.loaded.print_drums_full(printseq, options, out)
                 else:
-                    self.loaded.print_drums(drums, printseq, out)
+                    self.loaded.print_drums(printseq, out)
         for number, name in nondrums:
             with open(self.get_instrument_filename(name), "w") as out:
                 if self.check_full.isChecked():
-                    self.loaded.print_instrument_full(number, options[:2], out)
+                    self.loaded.print_instrument_full(number, options, out)
                 else:
                     self.loaded.print_instrument(number, out)
 
@@ -702,11 +706,16 @@ class MainFrame(qtw.QWidget):
 
         with open(self.get_general_filename(), "w") as out:
             if drums:
+                log('calling print_general_data with args {} {} {}'.format(
+                    drums, self.check_full.isChecked(), out))
                 self.loaded.print_general_data(drums, self.check_full.isChecked(),
                                                out)
             else:
+                log('calling print_general_data with args {} {}'.format(
+                    self.check_full.isChecked(), out))
                 self.loaded.print_general_data(full=self.check_full.isChecked(),
                                                _out=out)
+        log('calling prepare_print_instruments with argument {}'.format(nondrums))
         self.loaded.prepare_print_instruments(nondrums)
         self.loaded.prepare_print_drums(printseq)
         if self.check_allinone.isChecked():
@@ -717,14 +726,18 @@ class MainFrame(qtw.QWidget):
         if drums:
             with open(self.get_drums_filename(), "w") as out:
                 if self.check_full.isChecked():
-                    self.loaded.print_drums_full(drums, printseq, options, out)
+                    ## self.loaded.print_drums_full(drums, printseq, options, out)
+                    self.loaded.print_drums_full(printseq, options, out)
                 else:
-                    self.loaded.print_drums(drums, printseq, out)
+                    ## self.loaded.print_drums(drums, printseq, out)
+                    self.loaded.print_drums(printseq, out)
         for number, name in nondrums:
             with open(self.get_instrument_filename(name), "w") as out:
                 if self.check_full.isChecked():
                     self.loaded.print_instrument_full(name, options, out)
                 else:
+                    log('calling print_instrument with args {} {}'.format(number,
+                        out))
                     self.loaded.print_instrument(number, out)
 
     def process_mmpfile(self):
@@ -836,7 +849,7 @@ class MainFrame(qtw.QWidget):
             with open(self.get_instrument_filename(name), 'w') as _out:
                 if self.check_full.isChecked():
                     unlettered = self.loaded.print_instrument_full(trackno,
-                                                                   options[:2],
+                                                                   options,
                                                                    _out)
                 else:
                     unlettered = self.loaded.print_instrument(trackno, _out)
@@ -879,18 +892,20 @@ class MainFrame(qtw.QWidget):
         if drums:
             with open(self.get_drums_filename(), "w") as out:
                 if self.check_full.isChecked():
-                    self.loaded.print_drums_full(drums, printseq, options[:2], out)
+                    ## self.loaded.print_drums_full(drums, printseq, options, out)
+                    self.loaded.print_drums_full(printseq, options, out)
                 else:
-                    self.loaded.print_drums(drums, printseq, out)
+                    ## self.loaded.print_drums(drums, printseq, out)
+                    self.loaded.print_drums(printseq, out)
         for number, name in nondrums:
             with open(self.get_instrument_filename(name), "w") as out:
                 if self.check_full.isChecked():
-                    self.loaded.print_instrument_full(number, options[:2], out)
+                    self.loaded.print_instrument_full(number, options, out)
                 else:
                     self.loaded.print_instrument(number, out)
 
 
-if __name__ == '__main__':
+def main():
     app = qtw.QApplication(sys.argv)
     win = MainFrame()
     sys.exit(app.exec_())

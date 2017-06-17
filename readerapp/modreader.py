@@ -4,8 +4,8 @@ de patterns uit te schrijven
 """
 import sys
 import collections
-import shared
 import logging
+import readerapp.shared as shared
 
 
 def log(inp):
@@ -284,7 +284,7 @@ class ModFile:
             for sample_number, sample_name in instruments:
                 if sample_number not in drumsamples:
                     data.extend(shared.build_patt_list(sample_number, sample_name,
-                                                       self.playseqs[sample_number - 1]))
+                                                       self.playseqs[sample_number]))
             if 'drums' in self.playseqs:
                 data.extend(shared.build_patt_list('', 'Drums',
                                                    self.playseqs['drums']))
@@ -368,13 +368,18 @@ class ModFile:
         total_length = sum(self.lengths)
         interval, clear_empty = opts
         interval *= 2
-        empty = interval * shared.empty_drums
+        ## empty = interval * shared.empty_drums
         for eventindex in range(0, total_length, interval):
+            ## if eventindex + interval > total_length:
+                ## empty = (total_length - eventindex) * shared.empty_drums
             not_printed = True
             for inst in printseq:
                 tracks = self.all_drum_tracks[inst]
                 line = ''.join(tracks[eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                test_empty_line = all([x == shared.empty_drums
+                    for x in tracks[eventindex:eventindex + interval]])
+                ## if clear_empty and (line == empty or not line):
+                if clear_empty and (test_empty_line or not line):
                     pass
                 else:
                     print(line, file=_out)
@@ -434,14 +439,18 @@ class ModFile:
 
         if interval == -1:
             interval = total_length
-        empty = ' '.join(interval * [shared.empty_note])
+        ## empty = ' '.join(interval * [shared.empty_note])
         for eventindex in range(0, total_length, interval):
+            ## if eventindex + interval > total_length:
+                ## empty = ' '.join((total_length - eventindex) * [shared.empty_note])
             not_printed = True
             for note in reversed(sorted(self.all_notes[sample],
                                         key=shared.getnotenum)):
-                line = ' '.join(self.all_note_tracks[sample][note]
-                                [eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                tracks = self.all_note_tracks[sample][note]
+                line = ' '.join(tracks[eventindex:eventindex + interval])
+                test_empty_line = all([x == shared.empty_note
+                    for x in tracks[eventindex:eventindex + interval]])
+                if clear_empty and (test_empty_line or not line):
                     pass
                 else:
                     print(line, file=_out)
@@ -462,15 +471,19 @@ class ModFile:
 
             sep = ' '
             empty = sep.join(interval * [shared.empty_note])
+            ## if eventindex + interval > total_length:
+                ## empty = sep.join((total_length - eventindex) * [shared.empty_note])
             for sample, instname in instlist:
 
                 print('{}:'.format(instname), file=stream)
                 not_printed = True
                 for note in reversed(sorted(self.all_notes[sample],
                                             key=shared.getnotenum)):
-                    line = sep.join(self.all_note_tracks[sample][note]
-                                    [eventindex:eventindex + interval])
-                    if clear_empty and line == empty:
+                    tracks = self.all_note_tracks[sample][note]
+                    line = sep.join(tracks[eventindex:eventindex + interval])
+                    test_empty_line = all([x == shared.empty_note
+                        for x in tracks[eventindex:eventindex + interval]])
+                    if clear_empty and (test_empty_line or not line):
                         pass
                     else:
                         print('  ', line, file=stream)
@@ -481,13 +494,17 @@ class ModFile:
 
             sep = ''
             empty = interval * shared.empty_drums
+            ## if eventindex + interval > total_length:
+                ## empty = (total_length - eventindex) * shared.empty_drums
             print('drums:', file=stream)
             not_printed = True
             for _, instlett in sorted(druminst,
                                       key=lambda x: drumseq.index(x[1])):
-                line = sep.join(self.all_drum_tracks[instlett]
-                                [eventindex:eventindex + interval])
-                if clear_empty and line == empty:
+                tracks = self.all_drum_tracks[instlett]
+                line = sep.join(tracks[eventindex:eventindex + interval])
+                test_empty_line = all([x == shared.empty_drums
+                    for x in tracks[eventindex:eventindex + interval]])
+                if clear_empty and (test_empty_line or not line):
                     pass
                 else:
                     print('  ', line, file=stream)

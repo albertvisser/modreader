@@ -3,12 +3,12 @@ import os
 import subprocess
 import collections
 import pprint
+import logging
 try:
     import lxml.etree as et
 except ImportError:
     import xml.etree.ElementTree as et
-import shared
-import logging
+import readerapp.shared as shared
 
 
 def log(inp):
@@ -58,17 +58,15 @@ class MMPFile:
                 trackdata_split[name].extend(data_split)
                 self.pattern_starts[name][tracknum] = pattstarts
 
-        with open('/tmp/trackdata items.1', 'w') as _o:
-            for name, data in trackdata.items():
-                print(name, file=_o)
-                ## for item in sorted(data):
-                for item in data:
-                    print('   ', item, file=_o)
-            for name, data in trackdata_split.items():
-                print(name, file=_o)
-                ## for item in sorted(data):
-                for item in data:
-                    print('   ', item, file=_o)
+        ## with open('/tmp/trackdata items.1', 'w') as _o:
+            ## for name, data in trackdata.items():
+                ## print(name, file=_o)
+                ## for item in data:
+                    ## print('   ', item, file=_o)
+            ## for name, data in trackdata_split.items():
+                ## print(name, file=_o)
+                ## for item in data:
+                    ## print('   ', item, file=_o)
 
         for name, data in trackdata.items():
             for start, pattern, pattlen in sorted(data):
