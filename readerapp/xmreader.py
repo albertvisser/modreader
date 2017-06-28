@@ -471,7 +471,7 @@ class ExtModule:
                 empty = sep.join(
                     (self.full_length - eventindex) * [shared.empty_note])
             for _, sampname in samplist:
-                print(sampname, file=_out)
+                print('{}:'.format(sampname), file=_out)
                 sample = inst2sam[sampname]
                 not_printed = True
                 for note in self.all_notes[sample]:

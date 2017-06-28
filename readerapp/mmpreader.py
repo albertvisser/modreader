@@ -402,7 +402,7 @@ class MMPFile:
         instlist = list(instlist) + list(self.druminst)
         for eventindex in range(0, self.total_length, interval):
             for trackname in instlist:  # denk aan volgorde!
-                print(trackname, file=_out)
+                print('{}:'.format(trackname), file=_out)
                 is_drumtrack = trackname in self.druminst
                 if is_drumtrack:
                     notes_to_show = [x for x in sorted(self.all_notes[trackname],

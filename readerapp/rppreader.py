@@ -418,9 +418,9 @@ class RppFile:
                 trackno = inst2sam[instname]
                 is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
                 if is_drumtrack:
-                    print('drums', file=stream)
+                    print('drums:', file=stream)
                 else:
-                    print(instname, file=stream)
+                    print('{}:'.format(instname), file=stream)
                 delim = shared.sep[is_drumtrack]
                 empty = delim.join(interval * [shared.empty[is_drumtrack]])
                 if eventindex + interval > full_length:
