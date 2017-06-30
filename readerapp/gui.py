@@ -17,7 +17,7 @@ import os.path
 import datetime
 import logging
 import PyQt5.QtWidgets as qtw
-## import PyQt5.QtGui as gui
+import PyQt5.QtGui as gui
 import PyQt5.QtCore as core
 import readerapp.shared as shared
 import readerapp.modreader as modreader
@@ -29,9 +29,20 @@ import readerapp.xmreader  as xmreader
 
 
 def log(inp):
+    "just a wrapper"
     logging.info(inp)
 
 mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
+
+
+def waiting_cursor(func):
+    "change the cursor before and after an operation"
+    def wrap_operation(self):
+        "the wrapped operation is a method without arguments"
+        self.app.setOverrideCursor(gui.QCursor(core.Qt.WaitCursor))
+        func(self)
+        self.app.restoreOverrideCursor()
+    return wrap_operation
 
 
 def list_items(listbox):
@@ -82,7 +93,8 @@ class GetDestDialog(qtw.QDialog):
 
 class MainFrame(qtw.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, app):
+        self.app = app
         super().__init__()
         self._mru_items = []
         self.loaded = None
@@ -132,7 +144,24 @@ class MainFrame(qtw.QWidget):
         vbox.addLayout(hbox)
 
         hbox = qtw.QHBoxLayout()
-        hbox.addWidget(qtw.QLabel("Select + Move\nDrum Samples:", self))
+        hbox.addStretch()
+        hbox.addWidget(qtw.QLabel("Select + Move drum samples:", self))
+        hbox.addStretch()
+        vbox.addLayout(hbox)
+
+        hbox = qtw.QHBoxLayout()
+
+        col = qtw.QVBoxLayout()
+        col.addSpacing(9)
+        col.addWidget(qtw.QLabel("Reorder\nremaining\ninstruments:", self))
+        inst_up_button = qtw.QPushButton('Move U&p', self)
+        inst_up_button.clicked.connect(self.move_inst_up)
+        col.addWidget(inst_up_button)
+        inst_down_button = qtw.QPushButton('Move D&own', self)
+        inst_down_button.clicked.connect(self.move_inst_down)
+        col.addWidget(inst_down_button)
+        col.addStretch()
+        hbox.addLayout(col)
 
         self.list_samples = qtw.QListWidget(self)
         self.list_samples.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
@@ -155,6 +184,7 @@ class MainFrame(qtw.QWidget):
 
         col = qtw.QVBoxLayout()
         col.addStretch()
+        col.addWidget(qtw.QLabel("Reorder\ndrum samples:", self))
         up_button = qtw.QPushButton('Move &Up', self)
         up_button.clicked.connect(self.move_up)
         col.addWidget(up_button)
@@ -170,6 +200,7 @@ class MainFrame(qtw.QWidget):
         col.addWidget(self.remove_button)
         col.addStretch()
         hbox.addLayout(col)
+
         vbox.addLayout(hbox)
 
         hbox = qtw.QHBoxLayout()
@@ -278,6 +309,7 @@ class MainFrame(qtw.QWidget):
                     self._mru_items.pop(0)
                 self.ask_modfile.addItem(name)
 
+    @waiting_cursor
     def load_module(self):
         pad = self.ask_modfile.currentText()
         msg = ''
@@ -518,33 +550,7 @@ class MainFrame(qtw.QWidget):
         self.check_full.setFocus(True)
 
     def create_files(self):
-        msg = ''
-        if not self.loaded:
-            msg = 'Please load a module first'
-
-        if not msg:
-            msg = self.check_letter_assignment()
-
-        if msg:
-            qtw.QMessageBox.information(self, self.title, msg)
-            return
-
-        try:
-            os.mkdir(self.newdir)
-        except FileExistsError:
-            pass
-        self.dts = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
-
-        go_dict = {
-            'mod': self.process_modfile,
-            'mid': self.process_midifile,
-            'xm': self.process_xmfile,
-            'med': self.process_medfile,
-            'mmp': self.process_mmpfile,
-            'mmpz': self.process_mmpfile,
-            'rpp': self.process_rppfile}
-
-        go_dict[self.ftype]()
+        self.do_creation()
         qtw.QMessageBox.information(self, self.title, 'Done')
 
     def help(self):
@@ -904,8 +910,37 @@ class MainFrame(qtw.QWidget):
                 else:
                     self.loaded.print_instrument(number, out)
 
+    @waiting_cursor
+    def do_creation(self):
+        msg = ''
+        if not self.loaded:
+            msg = 'Please load a module first'
+
+        if not msg:
+            msg = self.check_letter_assignment()
+
+        if msg:
+            qtw.QMessageBox.information(self, self.title, msg)
+            return
+
+        try:
+            os.mkdir(self.newdir)
+        except FileExistsError:
+            pass
+        self.dts = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
+
+        go_dict = {
+            'mod': self.process_modfile,
+            'mid': self.process_midifile,
+            'xm': self.process_xmfile,
+            'med': self.process_medfile,
+            'mmp': self.process_mmpfile,
+            'mmpz': self.process_mmpfile,
+            'rpp': self.process_rppfile}
+
+        go_dict[self.ftype]()
 
 def main():
     app = qtw.QApplication(sys.argv)
-    win = MainFrame()
+    win = MainFrame(app)
     sys.exit(app.exec_())
