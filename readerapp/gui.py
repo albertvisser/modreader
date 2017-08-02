@@ -25,14 +25,14 @@ import readerapp.midreader as midreader
 import readerapp.medreader as medreader
 import readerapp.mmpreader as mmpreader
 import readerapp.rppreader as rppreader
-import readerapp.xmreader  as xmreader
+import readerapp.xmreader as xmreader
+
+mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
 
 
 def log(inp):
     "just a wrapper"
     logging.info(inp)
-
-mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
 
 
 def waiting_cursor(func):
@@ -46,6 +46,8 @@ def waiting_cursor(func):
 
 
 def list_items(listbox):
+    """retrieve list of items listed in listbox
+    """
     return [listbox.item(i).text() for i in range(len(listbox))]
 
 
@@ -81,18 +83,23 @@ class GetDestDialog(qtw.QDialog):
         self.setLayout(sizer)
 
     def browse(self):
+        """callback for the button
+        """
         startdir = self.dest.text() or os.getcwd()
         path = qtw.QFileDialog.getSaveFileName(self, 'Kies een bestand', startdir)
         if path[0]:
             self.dest.setText(path[0])
 
     def accept(self):
+        """pass the chosen name to the main screen
+        """
         self.parent.newdir = self.dest.text()
         super().accept()
 
 
 class MainFrame(qtw.QWidget):
-
+    """Main screen for the application
+    """
     def __init__(self, app):
         self.app = app
         super().__init__()
@@ -117,7 +124,8 @@ class MainFrame(qtw.QWidget):
         self.newdir = shared.basedir
 
     def create_widgets(self):
-
+        """set up the GUI
+        """
         vbox = qtw.QVBoxLayout()
 
         hbox = qtw.QHBoxLayout()
@@ -255,6 +263,8 @@ class MainFrame(qtw.QWidget):
         self.show()
 
     def create_actions(self):
+        """assign actions to keystroke combinations
+        """
         self.helpitems = ['Use Alt with the underscored letters or']
         self.actionlist = (
             ('Activate filename field', 'Ctrl+Home', self.activate_filename),
@@ -286,9 +296,13 @@ class MainFrame(qtw.QWidget):
             self.helpitems.append('{}{}{}'.format(shortcut, fmt, name))
 
     def activate_filename(self):
+        """Move focus to the filename field
+        """
         self.ask_modfile.setFocus(True)
 
     def namechange(self):
+        """clear the listboxes (on change of filename)
+        """
         self.list_samples.clear()
         self.mark_samples.clear()
 
@@ -311,6 +325,8 @@ class MainFrame(qtw.QWidget):
 
     @waiting_cursor
     def load_module(self):
+        """load and parse the chosen file and show detected instruments
+        """
         pad = self.ask_modfile.currentText()
         msg = ''
         if not pad:
@@ -364,6 +380,8 @@ class MainFrame(qtw.QWidget):
         self.dest.setText(self.newdir)
 
     def activate_left(self):
+        """move focus to the listbox on the left
+        """
         item = self.list_samples.currentItem()
         if not item:
             item = self.list_samples.item(0)
@@ -373,6 +391,8 @@ class MainFrame(qtw.QWidget):
         self.list_samples.setFocus(True)
 
     def activate_right(self):
+        """move focus to the listbox on the right
+        """
         item = self.mark_samples.currentItem()
         if not item:
             item = self.mark_samples.item(0)
@@ -382,6 +402,8 @@ class MainFrame(qtw.QWidget):
         self.mark_samples.setFocus(True)
 
     def check_selected(self, lst, only_one=False, for_now=False):
+        """check if any items (instruments) were selected
+        """
         selected = lst.selectedItems()
         msg = ''
         if len(selected) == 0:
@@ -526,6 +548,8 @@ class MainFrame(qtw.QWidget):
             selected[0].setText(inst)
 
     def remove(self):
+        """delete superfluous item from the drum instruments list
+        """
         selected = self.mark_samples.selectedItems()
         for item in selected:
             ## selindex = self.mark_samples.row(item)
@@ -539,25 +563,37 @@ class MainFrame(qtw.QWidget):
             self.mark_samples.takeItem(selindx)
 
     def change_dest(self):
+        """callback for button to change standard output location
+        """
         if GetDestDialog(self, text=self.newdir).exec_() == qtw.QDialog.Accepted:
             self.dest.setText(self.newdir)
 
     def push(self):
+        """some leftover "humour" from when I was designing the app
+        """
         qtw.QMessageBox.information(self, 'The ModReaderGui Adventure',
                                     'You push a button.\n\nNothing happens.')
 
     def options(self):
+        """Move focus to the first button on the "options" line
+        """
         self.check_full.setFocus(True)
 
     def create_files(self):
+        """produce output and notify when ready
+        """
         self.do_creation()
         qtw.QMessageBox.information(self, self.title, 'Done')
 
     def help(self):
+        """show some help info
+        """
         qtw.QMessageBox.information(self, 'Keyboard Shortcuts',
                                     '\n'.join(self.helpitems))
 
     def exit(self):
+        """close the application
+        """
         with open(mru_filename, 'w') as _out:
             for name in self._mru_items:
                 _out.write(name + '\n')
@@ -565,6 +601,8 @@ class MainFrame(qtw.QWidget):
         self.close()
 
     def check_letter_assignment(self):
+        """Check if all drum instruments asre assigned a letter
+        """
         msg = ''
         samples, letters, printseq = [], [], ''
 
@@ -608,16 +646,24 @@ class MainFrame(qtw.QWidget):
         return msg
 
     def get_general_filename(self):
+        """determine filename for overview file
+        """
         return self.get_instrument_filename('general')
 
     def get_drums_filename(self):
+        """determine filename for drum instrument file
+        """
         return self.get_instrument_filename('drums')
 
     def get_instrument_filename(self, name):
+        """determine filename for "regular" instrument file
+        """
         return os.path.join(self.newdir, '{}-{}-{}'.format(self.dts, self.ftype,
                                                            name))
 
     def process_modfile(self):
+        """Create output for NoiseTracker/SoundTracker/MadTracker module
+        """
         drums = []
         nondrums = []
         samples, letters, printseq = self._assigned
@@ -645,7 +691,7 @@ class MainFrame(qtw.QWidget):
             druminst = [(x, y) for x, y in drums if len(y) == 1]
             log('calling print_all_instruments_full with args {} {} {} '
                 '{} {}'.format(nondrums, druminst, printseq, options,
-                self.get_general_filename()))
+                               self.get_general_filename()))
             with open(self.get_general_filename(), 'a') as _out:
                 self.loaded.print_all_instruments_full(nondrums, druminst, printseq,
                                                        options, _out)
@@ -664,8 +710,11 @@ class MainFrame(qtw.QWidget):
                     self.loaded.print_instrument(number, out)
 
     def process_midifile(self):
-        # this is assuming I only have midi files that use a separate drum track
-        # (instead of several tracks with one drum instrument each)
+        """Create output for MIDI
+
+        this is assuming I only have midi files that use a separate drum track
+        (instead of several tracks with one drum instrument each)
+        """
         options = (self.max_events.value(), self.check_nonempty.isChecked())
         with open(self.get_general_filename(), "w") as _out:
             self.loaded.print_general_data(full=self.check_full.isChecked(),
@@ -695,6 +744,8 @@ class MainFrame(qtw.QWidget):
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
     def process_medfile(self):
+        """Create output for (Octa)Med module
+        """
         drums = []
         nondrums = []
         samples, letters, printseq = self._assigned
@@ -743,10 +794,12 @@ class MainFrame(qtw.QWidget):
                     self.loaded.print_instrument_full(name, options, out)
                 else:
                     log('calling print_instrument with args {} {}'.format(number,
-                        out))
+                                                                          out))
                     self.loaded.print_instrument(number, out)
 
     def process_mmpfile(self):
+        """Create output for LMMS project
+        """
         drumsamples, letters, printseq = self._assigned
         inst_samples = [self.list_samples.item(x).text() for x in
                         range(self.list_samples.count())]
@@ -829,8 +882,11 @@ class MainFrame(qtw.QWidget):
                     self.loaded.print_instrument(trackname, _out)
 
     def process_rppfile(self):
-        # this is assuming I only have projects that use MIDI data
-        # where drums are in a separate track instead of one drum per track
+        """Create output for Reaper project
+
+        this is assuming I only have projects that use MIDI data
+        where drums are in a separate track instead of one drum per track
+        """
         with open(self.get_general_filename(), 'w') as _out:
             self.loaded.print_general_data(self.check_full.isChecked(), _out)
         # kijken of er dubbele namen zijn
@@ -863,6 +919,8 @@ class MainFrame(qtw.QWidget):
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
     def process_xmfile(self):
+        """create output for eXtended Module
+        """
         drums = []
         nondrums = []
         samples, letters, printseq = self._assigned
@@ -912,6 +970,8 @@ class MainFrame(qtw.QWidget):
 
     @waiting_cursor
     def do_creation(self):
+        """create output file(s)
+        """
         msg = ''
         if not self.loaded:
             msg = 'Please load a module first'
@@ -940,7 +1000,9 @@ class MainFrame(qtw.QWidget):
 
         go_dict[self.ftype]()
 
+
 def main():
+    "main function"
     app = qtw.QApplication(sys.argv)
     win = MainFrame(app)
     sys.exit(app.exec_())

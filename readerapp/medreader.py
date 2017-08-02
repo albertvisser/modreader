@@ -1,3 +1,5 @@
+"""ModReaderGui - data processing for Med Music module format
+"""
 import sys
 import struct
 import collections
@@ -6,6 +8,7 @@ import readerapp.shared as shared
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 
@@ -20,14 +23,7 @@ def get_note_name(inp):
 
 
 def mmd0_decode(data):
-    """
-    MMD0:    xynnnnnn iiiicccc dddddddd
-    n = note number (0 - $3F). 0 = ---, 1 = C-1, 2 = C#1...
-    i = the low 4 bits of the instrument number
-    x = the 5th bit (#4) of the instrument number
-    y = the 6th bit (#5) of the instrument number
-    c = command number (0 - $F)
-    d = databyte ($00 - $FF)
+    """return data read from file (short - MMD0 - format) as note event information
     """
     note_number = data[0] & 0x3F
     instr_hi = (data[0] & 0xC0) >> 2
@@ -38,13 +34,7 @@ def mmd0_decode(data):
 
 
 def mmd1_decode(data):
-    """
-    MMD1:    xnnnnnnn xxiiiiii cccccccc dddddddd
-    n = note number (0 - $7F, 0 = ---, 1 = C-1...)
-    i = instrument number (0 - $3F)
-    c = command ($00 - $FF)
-    d = databyte ($00 - $FF)
-    x = undefined, reserved for future expansion.
+    """return data read from file (long - MMD1 - format) as note event information
     """
     note_number = data[0] & 0x7F
     instr_number = data[1] & 0x3F
@@ -52,10 +42,14 @@ def mmd1_decode(data):
 
 
 def read_pointer(stream):
+    """read data from the file that is used as a pointer
+    """
     return struct.unpack('>L', stream.read(4))[0]
 
 
 def read_string(stream, length):
+    """read data from the file and return as a text string
+    """
     text = struct.unpack('{}s'.format(length), stream.read(length))
     try:
         result = str(text[0], encoding='utf-8')
@@ -65,7 +59,8 @@ def read_string(stream, length):
 
 
 class MedModule:
-
+    """Main processing class
+    """
     def __init__(self, filename):
         self.filename = filename
         self.pattern_data = {}
@@ -92,8 +87,11 @@ class MedModule:
         self.samplenames = samples_to_keep
 
     def read(self):
-        # instead of repositioning while reading, read the entire file first and then
-        # reposition in memory?
+        """read the file via structures into an internal data collection
+
+        instead of repositioning while reading, why not read the entire file first
+        and then (re)position in memory?
+        """
         with open(self.filename, 'rb') as _med:
 
             mod_header = struct.unpack('>4s9L4HhBB', _med.read(52))
@@ -205,6 +203,8 @@ class MedModule:
         self.all_pattern_lengths = self.all_pattern_lengths[:self.songlen]
 
     def checks(self):
+        """compare some values read from the file
+        """
         return (
             'songlen = {}, len of raw pattern list = {}'.format(self.songlen,
                                                                 len(self.raw_playseq)),
@@ -214,6 +214,8 @@ class MedModule:
                 self.pattern_count, len(self.pattern_data)))
 
     def remove_duplicate_patterns(self, sampnum):
+        """show patterns only once for incontiguous timelines
+        """
         renumber = {}
         pattern_list = []
         newsampnum = self.samplenames[sampnum][0] + 1
@@ -237,6 +239,8 @@ class MedModule:
                 self.playseqs[sampnum + 1].append(-1)
 
     def remove_duplicate_drum_patterns(self, samplist):
+        """show patterns only once for incontiguous timelines
+        """
         inst2samp = {x: y[0] + 1 for x, y in enumerate(self.samplenames)}
         ## samp2inst = {y[0] + 1: x for x, y in enumerate(self.samplenames)}
         single_instrument_samples = [inst2samp[x - 1] for x, y in samplist
@@ -296,6 +300,8 @@ class MedModule:
                 self.playseqs['drums'].append(-1)
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
+        """create the "overview" file (sample and pattern lists)
+        """
         if sample_list is None:
             drumsamples = sample_list = []
         else:
@@ -345,13 +351,12 @@ class MedModule:
             pattlen = pattern['len']
             for inst in printseq:
                 for key, events in pattern.items():
-                    if key != inst: continue
-                    if not events: continue
-                    print(shared.line_start, end='', file=_out)
-                    for i in range(pattlen):
-                        printable = inst if i in events else shared.empty_drums
-                        print(printable, end='', file=_out)
-                    print('', file=_out)
+                    if events and key == inst:
+                        print(shared.line_start, end='', file=_out)
+                        for i in range(pattlen):
+                            printable = inst if i in events else shared.empty_drums
+                            print(printable, end='', file=_out)
+                        print('', file=_out)
             print('', file=_out)
 
     def print_instrument(self, sample, _out=sys.stdout):
@@ -379,6 +384,8 @@ class MedModule:
             print('', file=_out)
 
     def prepare_print_drums(self, printseq):
+        """build complete timeline for drum instrument events
+        """
         self.all_drum_tracks = collections.defaultdict(list)
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
             if pattnum == -1:
@@ -395,6 +402,11 @@ class MedModule:
                     self.all_drum_tracks[inst].append(to_append)
 
     def print_drums_full(self, printseq, opts, _out=sys.stdout):
+        """output the drums timeline to a separate file/stream
+
+        printseq indicates the top-to-bottom sequence of instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         interval *= 2
         empty = interval * shared.empty_drums
@@ -416,6 +428,8 @@ class MedModule:
             print('', file=_out)
 
     def prepare_print_instruments(self, instlist):
+        """build complete timeline for all regular instrument events
+        """
         self.all_note_tracks = collections.defaultdict(
             lambda: collections.defaultdict(list))
         self.all_notes = collections.defaultdict(set)
@@ -447,10 +461,10 @@ class MedModule:
                         self.all_note_tracks[sample][note].append(to_append)
 
     def print_instrument_full(self, sample, opts, _out=sys.stdout):
-        """print the events for an instrument as a piano roll
+        """output an instrument timeline to a separate file/stream
 
-        sample is the number of the sample to print data for
-        stream is a file-like object to write the output to
+        sample indicates the instrument to process
+        opts indicates how many events per line and whether to print "empty" lines
         """
         interval, clear_empty = opts
         sep = ' '
@@ -474,6 +488,12 @@ class MedModule:
             print('', file=_out)
 
     def print_all_instruments_full(self, instlist, printseq, opts, _out=sys.stdout):
+        """output all instrument timelines to the "general" file
+
+        instlist indicates the top-to-bottom sequence of instruments
+        printseq indicates the top-to-bottom sequence of drum instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         total_length = sum(self.all_pattern_lengths)
 

@@ -1,4 +1,5 @@
-import pdb
+"""ModReaderGui - data processing for Reaper project file
+"""
 import sys
 import collections
 import pprint
@@ -7,11 +8,13 @@ import readerapp.shared as shared
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 
 class RppFile:
-
+    """Main processing class
+    """
     def __init__(self, filename):
         self.filename = filename
         self.procs = {
@@ -63,7 +66,7 @@ class RppFile:
         """check source type e.g.
           <SOURCE MIDI
         """
-        ## print("in start_source:", data)
+        ## log("in start_source: {}".format(data))
         self.ignore = data != 'MIDI'
         self.in_source = True
 
@@ -72,7 +75,8 @@ class RppFile:
         start of data block in case of midi, e.g.
         HASDATA 1 384 QN (zie onder)
         """
-        if self.ignore: return
+        if self.ignore:
+            return
         ## log("in process_data: {}".format(data))
         self.pattern_props['resolution'] = int(data.split()[1])
         self.pattern_data = collections.defaultdict(list)
@@ -85,7 +89,8 @@ class RppFile:
         note on/off and other midi events, e.g.
         E 0 c0 14 00
         """
-        if self.ignore: return
+        if self.ignore:
+            return
         ## log("in process_event: {}".format(data))
         data = data.split()
         tick = int(data[0])
@@ -106,7 +111,8 @@ class RppFile:
             ## self.pattern_start = self.timing
             start = self.pattern_start // (self.pattern_props['resolution'] // 4)
             self.pattern_list[self.instrument_number].append([self.pattern_no, start])
-            if self.track_start: self.track_start = False
+            if self.track_start:
+                self.track_start = False
         if evtype != '9':   # we're only interested in `note on`
             return
         if velocity == '00':    # set volume to zero == note off
@@ -163,7 +169,7 @@ class RppFile:
             new_patterns_temp = []
             new_pattern_list_temp = {}
             pattix = 0
-            pattgen = ((x, y, z) for x, y, z in self.patterns[track])
+            ## pattgen = ((x, y, z) for x, y, z in self.patterns[track])
             abspattstart = 0
 
             for item in pattern_start_list:
@@ -217,7 +223,8 @@ class RppFile:
             for item in new_patterns_temp:
                 patt, props, data = item
                 start = new_pattern_list_temp[patt]
-                if not data: continue
+                if not data:
+                    continue
                 try:
                     num_ = previous_patterns.index(data) + 1
                 except ValueError:
@@ -251,6 +258,8 @@ class RppFile:
                             self.pattern_list}
 
     def print_general_data(self, full=False, stream=sys.stdout):
+        """create the "overview" file (sample and pattern lists)
+        """
         data = shared.build_header("project", self.filename)
         data.extend(shared.build_inst_list([(x, y) for x, y in sorted(
             self.instruments.items())]))
@@ -264,6 +273,11 @@ class RppFile:
             print(line.rstrip(), file=stream)
 
     def print_instrument(self, trackno, stream=sys.stdout):
+        """print the events for an instrument as a piano roll
+
+        trackno is the number of the track / sample to print data for
+        stream is a file-like object to write the output to
+        """
         data = []
         unlettered = set()
         for patt_no, props, patt_data in self.patterns[trackno]:
@@ -305,6 +319,8 @@ class RppFile:
         return unlettered
 
     def prepare_print_instruments(self):
+        """build complete timeline for (drum and regular) instrument events
+        """
         self.all_note_tracks = collections.defaultdict(
             lambda: collections.defaultdict(list))
         self.unlettered = set()
@@ -327,7 +343,7 @@ class RppFile:
                     self.total_length += 1
                     log('self.total_length wordt {}'.format(self.total_length))
 
-        test = self.total_length  // 32
+        test = self.total_length // 32
         if test * 32 != self.total_length:
             self.total_length = (test + 1) * 32
         log('{} {}'.format(test, self.total_length))
@@ -378,6 +394,11 @@ class RppFile:
                         self.all_note_tracks[trackno][ix][event] = notestr
 
     def print_instrument_full(self, trackno, opts, stream=sys.stdout):
+        """output an instrument timeline to a separate file/stream
+
+        trackno indicates the instrument to process
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
         if is_drumtrack:
@@ -388,7 +409,7 @@ class RppFile:
 
         if is_drumtrack:
             all_notes = [x for x in shared.standard_printseq
-                if x in self.all_note_tracks[trackno]]
+                         if x in self.all_note_tracks[trackno]]
         else:
             all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
         for eventindex in range(0, full_length, interval):
@@ -410,6 +431,11 @@ class RppFile:
             print('', file=stream)
 
     def print_all_instruments_full(self, instlist, opts, stream=sys.stdout):
+        """output all instrument timelines to the "general" file
+
+        instlist indicates the top-to-bottom sequence of instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         inst2sam = {y: x for x, y in self.instruments.items()}
         full_length = self.total_length
@@ -428,7 +454,7 @@ class RppFile:
                         (full_length - eventindex) * [shared.empty[is_drumtrack]])
                 if is_drumtrack:
                     all_notes = [x for x in shared.standard_printseq
-                        if x in self.all_note_tracks[trackno]]
+                                 if x in self.all_note_tracks[trackno]]
                 else:
                     all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
                 not_printed = True

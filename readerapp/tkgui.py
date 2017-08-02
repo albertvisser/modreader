@@ -1,5 +1,5 @@
 """
-modreadergui.py
+modreadergui.py - not actively maintained
 
 reads a given module
 

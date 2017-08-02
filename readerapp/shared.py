@@ -1,4 +1,5 @@
-# shared stuff
+"""shared stuff for ModReader data processing modules
+"""
 import os.path
 import configparser
 import logging
@@ -8,6 +9,7 @@ logging.basicConfig(filename='/tmp/modreader.log', level=logging.DEBUG,
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 
@@ -32,8 +34,6 @@ tick_factor = 32
 time_unit = timing_unit * tick_factor
 patt_start = 'pattern {:>2}:'
 line_start = '            '
-## pattern_header = '        '
-## line_header = pattern_header + '    '
 empty_note = '...'
 empty_drums = '.'
 sep = {True: '', False: ' '}
@@ -48,6 +48,8 @@ def get_note_name(inp):
 
 
 def getnotenum(x):
+    """translate note name to note number
+    """
     octave = octave_length * int(x[2])
     seq = notenames.index(x[:2].strip())
     return octave + seq
@@ -64,6 +66,8 @@ def get_inst_name(inp):
 
 
 def build_header(filetype, filename, text=''):
+    """return standard header for "general" file
+    """
     title = "Details of {} {}".format(filetype, filename)
     result = [title, '=' * len(title), '']
     if text:
@@ -75,6 +79,8 @@ def build_header(filetype, filename, text=''):
 
 
 def build_inst_list(item_list, first_line=''):
+    """return instrument list in standard format
+    """
     if first_line == '':
         first_line = "Instruments:"
     result = [first_line, '']
@@ -85,12 +91,16 @@ def build_inst_list(item_list, first_line=''):
 
 
 def build_patt_header(text=''):
+    """return standard header for pattern
+    """
     if text == '':
         text = 'Patterns per instrument:'
     return [text, '']
 
 
 def build_patt_list(seq, text, item_list):
+    """return pattern list in standard format
+    """
     if text:
         result = ["    {:>2} {}".format(seq, text), '']
     else:

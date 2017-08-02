@@ -1,3 +1,5 @@
+"""ModReaderGui - data processing for LMMS project file
+"""
 import sys
 import os
 import subprocess
@@ -12,21 +14,30 @@ import readerapp.shared as shared
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 
 def get_druminst_order(x):
+    """helper function to determine order of drum instruments
+
+    relies on standard sequence defined in settings
+    """
     y = shared.get_inst_name(x + shared.octave_length + shared.note2drums)
     return shared.standard_printseq.index(y)
 
 
 class MMPFile:
-
+    """Main processing class
+    """
     def __init__(self, filename):
         self.filename = filename
         self.read()
 
     def read(self):
+        """unpack the project file if necessary, then read the XML and interpret
+        into an internal data collection
+        """
         mmpz_time = os.stat(self.filename).st_mtime
         project_name = os.path.splitext(os.path.basename(self.filename))[0]
         project_file = '/tmp/{}.mmp'.format(project_name)
@@ -138,6 +149,8 @@ class MMPFile:
         self.bbpatternlist = [(x, y) for x, y in sorted(bbeventslist)]
 
     def read_track(self, track):
+        """helper method to break up a track into note events
+        """
         patterns, patterns_split, pattstarts = [], [], []
         pattlist = track.findall('pattern')
         ## for pattnum, patt in enumerate(pattlist):
@@ -170,7 +183,10 @@ class MMPFile:
         return patterns, patterns_split, pattstarts
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
-        if sample_list is None: sample_list = []
+        """create the "overview" file (sample and pattern lists)
+        """
+        if sample_list is None:
+            sample_list = []
         data = shared.build_header("project", self.filename)
         data.extend(shared.build_inst_list([(i + 1, x) for i, x in enumerate(
             self.tracknames)]))
@@ -186,7 +202,8 @@ class MMPFile:
                     if ins == x:
                         y = lett
                         break
-                if y: y = y.join(('(', ')'))
+                if y:
+                    y = y.join(('(', ')'))
                 bb_inst.append((i + 1, ' '.join((x, y))))
             data.extend(shared.build_inst_list(bb_inst, "Beat/Bassline instruments:"))
             if not full:
@@ -196,11 +213,13 @@ class MMPFile:
         for line in data:
             print(line.rstrip(), file=_out)
 
-# v.w.b drums voorzie ik drie situaties:
-# - er worden beat/bassline tracks gebruikt
-#    hier moet ik nog in voorzien dat er niet alleen drums maar ook bas oid meedoet
-#    theoretisch, want zelf gebruik ik dat eigenlijk niet?
+    # v.w.b drums voorzie ik drie situaties:
+    # - er worden beat/bassline tracks gebruikt
+    #    hier moet ik nog in voorzien dat er niet alleen drums maar ook bas oid meedoet
+    #    theoretisch, want zelf gebruik ik dat eigenlijk niet?
     def print_beat_bassline(self, sample_list, printseq, _out=sys.stdout):
+        """collect the beat_bassline events and print them pattern by pattern
+        """
         with open('/tmp/mmp_bbpatterndata', 'w') as _o:
             pprint.pprint(self.bbpatterndata, stream=_o)
         for pattnum, pattern in self.bbpatterndata_split.items():
@@ -227,8 +246,10 @@ class MMPFile:
                     print(''.join(printable), file=_out)
             print('', file=_out)
 
-# - er word(t)(en) (een) midi drumtrack(s) gebruikt
+    # - er word(t)(en) (een) midi drumtrack(s) gebruikt
     def print_drumtrack(self, trackname, _out=sys.stdout):
+        """collect the drumtrack events and print them pattern by pattern
+        """
         unlettered = set()
         for ix, pattdata in enumerate(self.patterndata_split[trackname]):
             pattern, pattlen = pattdata
@@ -256,11 +277,18 @@ class MMPFile:
         ## for x in unlettered: print(x, file=_out)
         return unlettered
 
-# - er worden aparte instrumenten gebruikt (to be implemented)
+    # - er worden aparte instrumenten gebruikt (to be implemented)
     def print_drums(self, sample_list, printseq, _out=sys.stdout):
+        """collect the drum instrument events and print them pattern by pattern
+        """
         pass
 
     def print_instrument(self, trackname, _out=sys.stdout):
+        """print the events for an instrument as a piano roll
+
+        trackname is the name of the track / sample to print data for
+        stream is a file-like object to write the output to
+        """
         for ix, pattdata in enumerate(self.patterndata_split[trackname]):
             pattern, pattlen = pattdata
             print(shared.patt_start.format(ix + 1), file=_out)
@@ -284,7 +312,10 @@ class MMPFile:
             print('', file=_out)
 
     def prepare_print_instruments(self, druminst=None):
-        if not druminst: druminst = []
+        """build complete timeline for (drum & regular) instrument events
+        """
+        if not druminst:
+            druminst = []
         self.druminst = druminst
         self.notes_data_dict = collections.defaultdict(dict)
         self.all_notes = collections.defaultdict(set)
@@ -313,8 +344,13 @@ class MMPFile:
                     self.notes_data_dict[trackname][note][idx] = notename
             ## print(notes_data_dict, file=_out)
 
-    def print_instrument_full(self, trackname, options, _out=sys.stdout):
-        interval, clear_empty = options
+    def print_instrument_full(self, trackname, opts, _out=sys.stdout):
+        """output an instrument timeline to a separate file/stream
+
+        trackname indicates the instrument to process
+        opts indicates how many events per line and whether to print "empty" lines
+        """
+        interval, clear_empty = opts
         is_drumtrack = trackname in self.druminst
         if is_drumtrack:
             interval *= 2
@@ -342,6 +378,8 @@ class MMPFile:
             print('', file=_out)
 
     def prepare_print_beat_bassline(self, sample_list, printseq):
+        """build complete timeline for beat_bassline events
+        """
         ## notes_data_dict = {}
         self.total_length = 0
         if sample_list:
@@ -364,8 +402,10 @@ class MMPFile:
                         self.notes_data_dict['bb'][note][indx] = note
 
     def print_beat_bassline_full(self, printseq, opts, _out=sys.stdout):
-        """
-        {pattern_start: [(sample_name, [(pitch, time), ...], length), ...], ...}
+        """output beat_bassline timeline to a separate file/stream
+
+        printseq indicates the top-to-bottom sequence of the instruments
+        opts indicates how many events per line and whether to print "empty" lines
         """
         interval, clear_empty = opts
         interval *= 2
@@ -392,12 +432,22 @@ class MMPFile:
 
     # net als print_drums (via aparte samples) ook deze twee niet geïmplementeerd:
     def prepare_print_drums(self, sample_list):
+        """build complete timeline for drumtrack events
+        """
         pass
 
     def print_drums_full(self, sample_list, printseq, _out=sys.stdout):
+        """build complete timeline for combined drum instrument events
+        """
         pass
 
     def print_all_instruments_full(self, instlist, printseq, opts, _out=sys.stdout):
+        """output all instrument timelines to the "general" file
+
+        instlist indicates the top-to-bottom sequence of instruments
+        printseq indicates the top-to-bottom sequence of drum instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         instlist = list(instlist) + list(self.druminst)
         for eventindex in range(0, self.total_length, interval):

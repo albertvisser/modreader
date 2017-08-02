@@ -1,3 +1,5 @@
+"""ModReaderGui - data processing for eXtended Module format
+"""
 import sys
 import struct
 import collections
@@ -6,6 +8,7 @@ import readerapp.shared as shared
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 
@@ -20,6 +23,8 @@ def get_note_name(inp):
 
 
 def read_string(stream, length):
+    """read data from the file and return as a text string
+    """
     text = struct.unpack('{}s'.format(length), stream.read(length))
     try:
         result = str(text[0], encoding='utf-8')
@@ -29,7 +34,8 @@ def read_string(stream, length):
 
 
 class ExtModule:
-
+    """Main processing class
+    """
     def __init__(self, filename):
         self.filename = filename
         self.pattern_data = {}
@@ -96,11 +102,11 @@ class ExtModule:
         self.samplenames = samples_to_keep
 
     def read(self):
+        """read the file via structures into an internal data collection
 
-        # instead of repositioning while reading, read the entire file first and then
-        # reposition in memory?
-        # make sure the resulting patterns are 32 events tops
-
+        instead of repositioning while reading, why not read the entire file first
+        and then (re)position in memory?
+        """
         with open(self.filename, 'rb') as _xm:
 
             read_string(_xm, 17)                # module id
@@ -187,6 +193,8 @@ class ExtModule:
                 self.instruments[instnum + 1].append(samples)
 
     def remove_duplicate_patterns(self, sampnum):
+        """show patterns only once for incontiguous timelines
+        """
         renumber = {}
         pattern_list = []
         ## newsampnum = self.instruments[sampnum][0]
@@ -209,7 +217,8 @@ class ExtModule:
                 self.playseqs[sampnum].append(-1)
 
     def remove_duplicate_drum_patterns(self, samplist):
-        """
+        """show patterns only once for incontiguous timelines
+
         sample_list is a list of pattern numbers associated with the instruments
         to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
         """
@@ -274,7 +283,10 @@ class ExtModule:
                 self.playseqs['drums'].append(-1)
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
-        if sample_list is None: sample_list = []
+        """create the "overview" file (sample and pattern lists)
+        """
+        if sample_list is None:
+            sample_list = []
         drumsamples = [x for x, y in sample_list]
         data = shared.build_header("module", self.filename)
 
@@ -337,13 +349,12 @@ class ExtModule:
             pattlen = pattern.pop('len')
             for inst in printseq:
                 for key, events in pattern.items():
-                    if key != inst: continue
-                    if not events: continue
-                    print(shared.line_start, end='', file=_out)
-                    for i in range(pattlen):
-                        printable = inst if i in events else shared.empty_drums
-                        print(printable, end='', file=_out)
-                    print('', file=_out)
+                    if key == inst and events:
+                        print(shared.line_start, end='', file=_out)
+                        for i in range(pattlen):
+                            printable = inst if i in events else shared.empty_drums
+                            print(printable, end='', file=_out)
+                        print('', file=_out)
             print('', file=_out)
 
     def print_instrument(self, sample, _out=sys.stdout):
@@ -371,6 +382,8 @@ class ExtModule:
             print('', file=_out)
 
     def prepare_print_drums(self, printseq):
+        """build complete timeline for drum instrument events
+        """
         self.all_drum_events = collections.defaultdict(list)
         ## print(self.initial_patterns, file=_out)
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
@@ -385,6 +398,11 @@ class ExtModule:
                 self.all_drum_events[inst].extend(pattdata)
 
     def print_drums_full(self, printseq, opts, _out=sys.stdout):
+        """output the drums timeline to a separate file/stream
+
+        printseq indicates the top-to-bottom sequence of instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         interval *= 2
         empty = interval * shared.empty_drums
@@ -406,6 +424,8 @@ class ExtModule:
             print('', file=_out)
 
     def prepare_print_instruments(self, samplist):
+        """build complete timeline for all regular instrument events
+        """
         self.all_note_tracks = collections.defaultdict(
             lambda: collections.defaultdict(list))
         self.all_notes = collections.defaultdict(set)
@@ -438,6 +458,11 @@ class ExtModule:
                         self.all_note_tracks[sample][note].append(to_append)
 
     def print_instrument_full(self, sample, opts, _out=sys.stdout):
+        """output an instrument timeline to a separate file/stream
+
+        trackno indicates the instrument to process
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         sep = ' '
         empty = sep.join(interval * [shared.empty_note])
@@ -460,6 +485,12 @@ class ExtModule:
             print('', file=_out)
 
     def print_all_instruments_full(self, samplist, printseq, opts, _out=sys.stdout):
+        """output all instrument timelines to the "general" file
+
+        samplist indicates the top-to-bottom sequence of instruments
+        printseq indicates the top-to-bottom sequence of drum instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
 
         inst2sam = {y: x for x, y in self.samplenames}

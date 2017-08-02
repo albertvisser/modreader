@@ -1,6 +1,5 @@
-"""
-Het idee achter deze module is om na het lezen van de bestanden
-de patterns uit te schrijven
+"""ModReaderGui - data processing for classic module format
+
 """
 import sys
 import collections
@@ -9,6 +8,7 @@ import readerapp.shared as shared
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 # de noten kloppen, maar de octaven worden in MilkyTracker 2 hoger weergegeven
@@ -32,6 +32,8 @@ maxpattlen = 64
 
 
 def getstring(data):
+    """convert data from file into a text string
+    """
     result = ''
     for bytechar in data:
         if bytechar == b'\x00':
@@ -41,6 +43,8 @@ def getstring(data):
 
 
 def get_sample(data):
+    """return data read from file as sample info
+    """
     name = ''
     for bytechar in data[:22]:
         if int(bytechar) > 0:
@@ -50,6 +54,10 @@ def get_sample(data):
 
 
 def get_playseq(data, length):
+    """return data read from file as a list of pattern numbers
+
+    also return highest pattern number
+    """
     result = []
     highpatt = 0
     for bytechar in data[:length]:
@@ -61,6 +69,8 @@ def get_playseq(data, length):
 
 
 def get_notedata(data):
+    """return data read from file as note event information
+    """
     sampnum = data[0] & 0xF0
     sampnum += data[2] >> 4
     period = data[0] & 0x0F
@@ -73,7 +83,8 @@ def get_notedata(data):
 
 
 class ModFile:
-
+    """Main processing class
+    """
     def __init__(self, filename):
         self.filename = filename
         self.samples = {}
@@ -82,6 +93,11 @@ class ModFile:
         self.read()
 
     def read(self):
+        """read the file via structures into an internal data collection
+
+        instead of repositioning while reading, why not read the entire file first
+        and then (re)position in memory?
+        """
         with open(self.filename, 'rb') as _in:
 
             self.name = str(_in.read(20), encoding='ascii')
@@ -186,6 +202,8 @@ class ModFile:
             self.lengths.extend(newlentab[x])
 
     def remove_duplicate_patterns(self, sampnum):
+        """show patterns only once for incontiguous timelines
+        """
         renumber = collections.defaultdict(dict)
         pattern_list = []
         for pattnum, patt in self._pattern_data[sampnum].items():
@@ -203,6 +221,8 @@ class ModFile:
                 self.playseqs[sampnum].append(-1)
 
     def remove_duplicate_drum_patterns(self, samplist):
+        """show patterns only once for incontiguous timelines
+        """
         single_instrument_samples = [x for x, y in samplist if len(y) == 1]
         ## lookup = {y: x - 1 for x, y in samplist if len(y) == 1}
         samp2lett = {x: y for x, y in samplist}
@@ -250,14 +270,16 @@ class ModFile:
                 self.playseqs['drums'].append(-1)
 
     def print_general_data(self, sample_list=None, full=False, _out=sys.stdout):
-        """
+        """create the "overview" file (sample and pattern lists)
+
         sample_list is a list of pattern numbers associated with the drum samples
         to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
         so this can be used to determine if it's a drum instrument
         printseq indicates the sequence to print these top to bottom e.g. 'hsb'
         stream is a file-like object to write the output to
         """
-        if sample_list is None: sample_list = []
+        if sample_list is None:
+            sample_list = []
         drumsamples = [x for x, y in sample_list]
         data = shared.build_header("module", self.filename, self.name.rstrip(chr(0)))
 
@@ -292,7 +314,6 @@ class ModFile:
         for text in data:
             print(text.rstrip(), file=_out)
 
-    ## def print_drums(self, sample_list, printseq, _out=sys.stdout):
     def print_drums(self, printseq, _out=sys.stdout):
         """collect the drum sample events and print them together
         """
@@ -302,7 +323,8 @@ class ModFile:
             print(shared.patt_start.format(pattnum + 1), file=_out)
             for inst in printseq:
                 for key, events in pattern.items():
-                    if key != inst: continue
+                    if key != inst:
+                        continue
                     events = [x[0] for x in events]
                     printable = ''
                     for i in range(pattlen):
@@ -337,9 +359,8 @@ class ModFile:
                 print(' '.join(printable), file=_out)
             print('', file=_out)
 
-    ## def prepare_print_drums(self, sample_list, printseq, opts, _out=sys.stdout):
     def prepare_print_drums(self, printseq):
-        """collect the drum sample events and print them together
+        """build complete timeline for drum instrument events
 
         sample_list is a list of pattern numbers associated with the instruments
         to print on this event, e.g. ((1, 'b'), (2, 's'), (4, 'bs'), (7, 'bsh'))
@@ -363,8 +384,12 @@ class ModFile:
                     to_append = inst if i in events else shared.empty_drums
                     self.all_drum_tracks[inst].append(to_append)
 
-    ## def print_drums_full(self, sample_list, printseq, opts, _out=sys.stdout):
     def print_drums_full(self, printseq, opts, _out=sys.stdout):
+        """output the drums timeline to a separate file/stream
+
+        printseq indicates the top-to-bottom sequence of instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         total_length = sum(self.lengths)
         interval, clear_empty = opts
         interval *= 2
@@ -376,8 +401,8 @@ class ModFile:
             for inst in printseq:
                 tracks = self.all_drum_tracks[inst]
                 line = ''.join(tracks[eventindex:eventindex + interval])
-                test_empty_line = all([x == shared.empty_drums
-                    for x in tracks[eventindex:eventindex + interval]])
+                test_empty_line = all([x == shared.empty_drums for x in
+                                       tracks[eventindex:eventindex + interval]])
                 ## if clear_empty and (line == empty or not line):
                 if clear_empty and (test_empty_line or not line):
                     pass
@@ -388,12 +413,8 @@ class ModFile:
                 print(shared.empty_drums, file=_out)
             print('', file=_out)
 
-    ## def print_instrument_full(self, sample, opts, _out=sys.stdout):
     def prepare_print_instruments(self, sample_list):
-        """print the events for an instrument as a piano roll
-
-        sample is the number of the sample to print data for
-        stream is a file-like object to write the output to
+        """build complete timeline for all regular instrument events
         """
         self.all_note_tracks = collections.defaultdict(
             lambda: collections.defaultdict(list))
@@ -432,8 +453,12 @@ class ModFile:
                         to_append = note if i in events else shared.empty_note
                         self.all_note_tracks[sample][note].append(to_append)
 
-    ## def print_instrument_full(self, sample, opts, _out=sys.stdout):
     def print_instrument_full(self, sample, opts, _out=sys.stdout):
+        """output an instrument timeline to a separate file/stream
+
+        sample indicates the instrument to process
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         total_length = sum(self.lengths)
         interval, clear_empty = opts
 
@@ -448,8 +473,8 @@ class ModFile:
                                         key=shared.getnotenum)):
                 tracks = self.all_note_tracks[sample][note]
                 line = ' '.join(tracks[eventindex:eventindex + interval])
-                test_empty_line = all([x == shared.empty_note
-                    for x in tracks[eventindex:eventindex + interval]])
+                test_empty_line = all([x == shared.empty_note for x in
+                                       tracks[eventindex:eventindex + interval]])
                 if clear_empty and (test_empty_line or not line):
                     pass
                 else:
@@ -461,6 +486,12 @@ class ModFile:
 
     def print_all_instruments_full(self, instlist, druminst, drumseq, opts,
                                    stream=sys.stdout):
+        """output all instrument timelines to the "general" file
+
+        instlist indicates the top-to-bottom sequence of instruments
+        drumseq indicates the top-to-bottom sequence of drum instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
 
         total_length = sum(self.lengths)
         interval, clear_empty = opts
@@ -470,7 +501,6 @@ class ModFile:
         for eventindex in range(0, total_length, interval):
 
             sep = ' '
-            empty = sep.join(interval * [shared.empty_note])
             ## if eventindex + interval > total_length:
                 ## empty = sep.join((total_length - eventindex) * [shared.empty_note])
             for sample, instname in instlist:
@@ -481,8 +511,8 @@ class ModFile:
                                             key=shared.getnotenum)):
                     tracks = self.all_note_tracks[sample][note]
                     line = sep.join(tracks[eventindex:eventindex + interval])
-                    test_empty_line = all([x == shared.empty_note
-                        for x in tracks[eventindex:eventindex + interval]])
+                    test_empty_line = all([x == shared.empty_note for x in
+                                           tracks[eventindex:eventindex + interval]])
                     if clear_empty and (test_empty_line or not line):
                         pass
                     else:
@@ -493,7 +523,6 @@ class ModFile:
                 print('', file=stream)
 
             sep = ''
-            empty = interval * shared.empty_drums
             ## if eventindex + interval > total_length:
                 ## empty = (total_length - eventindex) * shared.empty_drums
             print('drums:', file=stream)
@@ -502,8 +531,8 @@ class ModFile:
                                       key=lambda x: drumseq.index(x[1])):
                 tracks = self.all_drum_tracks[instlett]
                 line = sep.join(tracks[eventindex:eventindex + interval])
-                test_empty_line = all([x == shared.empty_drums
-                    for x in tracks[eventindex:eventindex + interval]])
+                test_empty_line = all([x == shared.empty_drums for x in
+                                       tracks[eventindex:eventindex + interval]])
                 if clear_empty and (test_empty_line or not line):
                     pass
                 else:

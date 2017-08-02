@@ -1,3 +1,5 @@
+"""ModReaderGui - data processing for MIDI file format
+"""
 import sys
 import os
 import subprocess
@@ -8,11 +10,13 @@ import readerapp.shared as shared
 
 
 def log(inp):
+    "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
 
 class MidiFile:
-
+    """Main processing class
+    """
     def __init__(self, filename):
         self.filename = filename
         self.weirdness = []
@@ -22,6 +26,9 @@ class MidiFile:
         self.read()
 
     def read(self):
+        """convert the midi file into a csv and read and interpret that to
+        build the internal data collection
+        """
         outfile = os.path.basename(self.filename).replace('.mid', '.csv')
         outfile = os.path.join('/tmp', outfile)
         subprocess.run(['midicsv', self.filename, outfile])
@@ -69,11 +76,14 @@ class MidiFile:
             self.pattern_lists[trackno] = pattern_list
         to_pop = []
         for key, val in self.instruments.items():
-            if not val[1]: to_pop.append(key)
+            if not val[1]:
+                to_pop.append(key)
         for key in to_pop:
             self.instruments.pop(key)
 
     def print_general_data(self, full=False, stream=sys.stdout):
+        """create the "overview" file (sample and pattern lists)
+        """
         data = shared.build_header("module", self.filename)
         data.extend(shared.build_inst_list([(x, '{} (chn. {})'.format(y[0], y[1]))
                                             for x, y in self.instruments.items()]))
@@ -98,6 +108,11 @@ class MidiFile:
             print(item.rstrip(), file=stream)
 
     def print_instrument(self, trackno, stream=sys.stdout):
+        """print the events for an instrument as a piano roll
+
+        trackno is the number of the midi track / sample to print data for
+        stream is a file-like object to write the output to
+        """
         is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
         for number, pattern in self.patterns[trackno]:
             print(shared.patt_start.format(number + 1), file=stream)
@@ -135,7 +150,8 @@ class MidiFile:
                     printstr[0] = printstr[0][:-1]
                 printables.append((key, shared.sep[is_drumtrack].join(printstr)))
             printables.sort()
-            if not is_drumtrack: printables.reverse()
+            if not is_drumtrack:
+                printables.reverse()
             for key, line in printables:
                 print(line, file=stream)
             print('', file=stream)
@@ -144,6 +160,8 @@ class MidiFile:
         return unlettered
 
     def prepare_print_instruments(self):
+        """build complete timeline for (drum & regular) instrument events
+        """
         self.all_track_notes = collections.defaultdict(
             lambda: collections.defaultdict(list))
         self.all_notevals = collections.defaultdict(set)
@@ -190,6 +208,11 @@ class MidiFile:
                 self.total_length = test
 
     def print_instrument_full(self, trackno, opts, stream=sys.stdout):
+        """output an instrument timeline to a separate file/stream
+
+        trackno indicates the instrument to process
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         is_drumtrack = self.instruments[trackno][1] == shared.drum_channel
         all_track_notes = self.all_track_notes[trackno]
@@ -225,7 +248,11 @@ class MidiFile:
             print('', file=stream)
 
     def print_all_instruments_full(self, instlist, opts, stream=sys.stdout):
+        """output all instrument timelines to the "general" file
 
+        instlist indicates the top-to-bottom sequence of instruments
+        opts indicates how many events per line and whether to print "empty" lines
+        """
         interval, clear_empty = opts
         inst2sam = {y[0]: (x, y) for x, y in self.instruments.items()}
 
