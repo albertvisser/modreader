@@ -13,7 +13,8 @@ creates a collection of files containing:
 - the other samples one-by-one
 """
 import sys
-import os.path
+## import os.path
+import pathlib
 import datetime
 import logging
 import PyQt5.QtWidgets as qtw
@@ -27,7 +28,7 @@ import readerapp.mmpreader as mmpreader
 import readerapp.rppreader as rppreader
 import readerapp.xmreader as xmreader
 
-mru_filename = os.path.join(os.path.dirname(__file__), 'mru_files')
+mru_filename = pathlib.Path(__file__).parent / 'mru_files'
 
 
 def log(inp):
@@ -103,7 +104,6 @@ class MainFrame(qtw.QWidget):
     def __init__(self, app):
         self.app = app
         super().__init__()
-        self._mru_items = []
         self.loaded = None
         self.drums = []
         self.nondrums = []
@@ -111,17 +111,15 @@ class MainFrame(qtw.QWidget):
         self.title = "ModReaderGui"
         self.setWindowTitle(self.title)
         try:
-            with open(mru_filename) as _in:
-                for line in _in:
-                    if line.strip():
-                        self._mru_items.append(line.strip())
+            self._mru_items = mru_filename.read_text().strip().split('\n')
         except FileNotFoundError:
-            pass
+            self._mru_items = []
+
         # this should enable tabbing, but apparently it doesn't?
         self.setFocusPolicy(core.Qt.StrongFocus)
         self.create_widgets()
         self.create_actions()
-        self.newdir = shared.basedir
+        self.newdir = str(shared.basedir)
 
     def create_widgets(self):
         """set up the GUI
@@ -215,7 +213,7 @@ class MainFrame(qtw.QWidget):
         hbox.addStretch()
         hbox.addWidget(qtw.QLabel("Destination:", self))
 
-        self.dest = qtw.QLabel(shared.basedir, self)
+        self.dest = qtw.QLabel(str(shared.basedir), self)
         hbox.addWidget(self.dest)
         dest_button = qtw.QPushButton("Cha&nge", self)
         dest_button.clicked.connect(self.change_dest)
@@ -328,15 +326,17 @@ class MainFrame(qtw.QWidget):
         """load and parse the chosen file and show detected instruments
         """
         pad = self.ask_modfile.currentText()
+        fn = pathlib.Path(pad)
         msg = ''
         if not pad:
             msg = 'You need to provide a filename'
-        elif not os.path.exists(pad):
+        elif not fn.exists():
             msg = 'File does not exist'
         if msg:
             qtw.QMessageBox.information(self, self.title, msg)
             return
-        self.ftype = os.path.splitext(pad)[1][1:].lower()
+        ## self.ftype = os.path.splitext(pad)[1][1:].lower()
+        self.ftype = fn.suffix[1:].lower()
         if self.ftype == 'mod':
             self.loaded = modreader.ModFile(pad)
             self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
@@ -375,8 +375,7 @@ class MainFrame(qtw.QWidget):
         self.usedtohave = {}
         if self.drums:
             self.mark_samples.addItems(self.drums)
-        self.newdir = os.path.join(
-            shared.basedir, os.path.splitext(os.path.basename(pad))[0]).replace('_', ' ')
+        self.newdir = str(shared.basedir / pathlib.Path(pad).name.replace('_', ' '))
         self.dest.setText(self.newdir)
 
     def activate_left(self):
@@ -594,14 +593,11 @@ class MainFrame(qtw.QWidget):
     def exit(self):
         """close the application
         """
-        with open(mru_filename, 'w') as _out:
-            for name in self._mru_items:
-                _out.write(name + '\n')
-        ## pass # built in delay to avoid segfault
+        mru_filename.write_text('\n'.join(self._mru_items) + '\n')
         self.close()
 
     def check_letter_assignment(self):
-        """Check if all drum instruments asre assigned a letter
+        """Check if all drum instruments are assigned a letter
         """
         msg = ''
         samples, letters, printseq = [], [], ''
@@ -658,7 +654,7 @@ class MainFrame(qtw.QWidget):
     def get_instrument_filename(self, name):
         """determine filename for "regular" instrument file
         """
-        return os.path.join(self.newdir, '{}-{}-{}'.format(self.dts, self.ftype,
+        return str(pathlib.Path(self.newdir) / '{}-{}-{}'.format(self.dts, self.ftype,
                                                            name))
 
     def process_modfile(self):
@@ -975,29 +971,22 @@ class MainFrame(qtw.QWidget):
         msg = ''
         if not self.loaded:
             msg = 'Please load a module first'
-
         if not msg:
             msg = self.check_letter_assignment()
-
         if msg:
             qtw.QMessageBox.information(self, self.title, msg)
             return
 
-        try:
-            os.mkdir(self.newdir)
-        except FileExistsError:
-            pass
+        pathlib.Path(self.newdir).mkdir(exist_ok=True)
         self.dts = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
 
-        go_dict = {
-            'mod': self.process_modfile,
-            'mid': self.process_midifile,
-            'xm': self.process_xmfile,
-            'med': self.process_medfile,
-            'mmp': self.process_mmpfile,
-            'mmpz': self.process_mmpfile,
-            'rpp': self.process_rppfile}
-
+        go_dict = {'mod': self.process_modfile,
+                   'mid': self.process_midifile,
+                   'xm': self.process_xmfile,
+                   'med': self.process_medfile,
+                   'mmp': self.process_mmpfile,
+                   'mmpz': self.process_mmpfile,
+                   'rpp': self.process_rppfile}
         go_dict[self.ftype]()
 
 

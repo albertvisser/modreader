@@ -2,6 +2,7 @@
 """
 import sys
 import os
+import pathlib
 import subprocess
 import collections
 import pprint
@@ -38,17 +39,18 @@ class MMPFile:
         """unpack the project file if necessary, then read the XML and interpret
         into an internal data collection
         """
-        mmpz_time = os.stat(self.filename).st_mtime
-        project_name = os.path.splitext(os.path.basename(self.filename))[0]
-        project_file = '/tmp/{}.mmp'.format(project_name)
+        project_file = pathlib.Path(self.filename)
+        mmpz_time = project_file.stat().st_mtime
+        project_name = project_file.stem
+        project_copy = pathlib.Path('/tmp/{}.mmp'.format(project_name))
         try:
-            mmp_time = os.stat(project_file).st_mtime
+            mmp_time = project_copy.stat().st_mtime
         except FileNotFoundError:
             mmp_time = 0
         if mmp_time < mmpz_time:
-            with open(project_file, 'w') as _out:
+            with project_copy.open('w') as _out:
                 subprocess.run(['lmms', '-d', self.filename], stdout=_out)
-        data = et.ElementTree(file=project_file)
+        data = et.ElementTree(file=str(project_copy))
         root = data.getroot()
 
         # getting the regular instruments

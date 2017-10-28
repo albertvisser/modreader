@@ -1,7 +1,8 @@
 """ModReaderGui - data processing for MIDI file format
 """
 import sys
-import os
+## import os
+import pathlib
 import subprocess
 import csv
 import collections
@@ -29,11 +30,11 @@ class MidiFile:
         """convert the midi file into a csv and read and interpret that to
         build the internal data collection
         """
-        outfile = os.path.basename(self.filename).replace('.mid', '.csv')
-        outfile = os.path.join('/tmp', outfile)
-        subprocess.run(['midicsv', self.filename, outfile])
+        outfile = pathlib.Path(self.filename).with_suffix('.csv').name
+        outfile = pathlib.Path('/tmp') / outfile
+        subprocess.run(['midicsv', self.filename, str(outfile)])
         trackdata = collections.defaultdict(set)
-        with open(outfile) as _in:
+        with outfile.open() as _in:
             csvdata = csv.reader(_in)
             for line in csvdata:
                 track, tick, event, *data = line

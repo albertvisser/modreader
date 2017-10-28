@@ -1,6 +1,7 @@
 """shared stuff for ModReader data processing modules
 """
-import os.path
+## import os.path
+import pathlib
 import configparser
 import logging
 
@@ -15,14 +16,15 @@ def log(inp):
 
 options = configparser.ConfigParser()
 options.optionxform = lambda x: x
-optionsfile = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'options.ini')
-options.read(optionsfile)
+## optionsfile = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'options.ini')
+optionsfile = pathlib.Path(__file__).parents[1] / 'options.ini'
+options.read(str(optionsfile))
 standard_printseq = options['general']['printseq']
 gm_drums = [(y, x) for x, y in options['gm_drums'].items()]
 samp2other = {x: y for x, y in options['samp2lett'].items()}
 known_files = options['general']['known_files'].split()
-basedir = os.path.expanduser(options['general']['basedir'])
-location = os.path.expanduser(options['general']['location'])
+basedir = pathlib.Path(options['general']['basedir']).expanduser()
+location = pathlib.Path(options['general']['location']).expanduser()
 notenames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 max_lines = per_line = 32
 octave_length = 12
