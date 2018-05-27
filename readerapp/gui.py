@@ -13,7 +13,7 @@ creates a collection of files containing:
 - the other samples one-by-one
 """
 import sys
-## import os.path
+import os
 import pathlib
 import datetime
 import logging
@@ -654,8 +654,9 @@ class MainFrame(qtw.QWidget):
     def get_instrument_filename(self, name):
         """determine filename for "regular" instrument file
         """
-        return str(pathlib.Path(self.newdir) / '{}-{}-{}'.format(self.dts, self.ftype,
-                                                           name))
+        return str(pathlib.Path(self.newdir) / '{}-{}-{}'.format(self.dts,
+                                                                 self.ftype,
+                                                                 name))
 
     def process_modfile(self):
         """Create output for NoiseTracker/SoundTracker/MadTracker module
