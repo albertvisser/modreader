@@ -69,7 +69,14 @@ that is, one in which all the drum instruments have been put together.
 If this is the case the parsing routine will recognize this so that the instruments
 are presented in the right way.
 
+Usage
+-----
 
-Dependencies: Python (3), PyQt5 for the most advanced version of the tool.
-If available, lxml is used for the xml parsing in mmpreader.
+Enter ``python3 modreadergui.py`` on the command line. You may leave out the python3 part.
 
+Requirements
+------------
+
+- Python
+- PyQt(5)
+- If available, lxml is used for the xml parsing in mmpreader.
