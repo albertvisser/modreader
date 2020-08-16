@@ -190,6 +190,8 @@ class ExtModule:
                     samp_leng = samp_header[0]
                     samples.append((samp_name, samp_leng))
                     inst_start += samp_hdr_size + samp_leng
+                if not self.instruments[instnum + 1][0]:
+                    self.instruments[instnum + 1][0] = samples[0][0].split('.')[0]
                 self.instruments[instnum + 1].append(samples)
 
     def remove_duplicate_patterns(self, sampnum):
