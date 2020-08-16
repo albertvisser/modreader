@@ -308,7 +308,7 @@ class MainFrame(qtw.QWidget):
         """event handler voor 'zoek in directory'"""
         oupad = self.ask_modfile.currentText()
         if oupad == "":
-            oupad = shared.location
+            oupad = str(shared.location)
         name = qtw.QFileDialog.getOpenFileName(
             self, "Open File", oupad,
             "Known files ({})".format(' '.join(['*.{}'.format(x)

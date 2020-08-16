@@ -16,7 +16,6 @@ def log(inp):
 
 options = configparser.ConfigParser()
 options.optionxform = lambda x: x
-## optionsfile = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'options.ini')
 optionsfile = pathlib.Path(__file__).parents[1] / 'options.ini'
 options.read(str(optionsfile))
 standard_printseq = options['general']['printseq']
