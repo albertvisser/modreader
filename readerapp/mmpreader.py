@@ -49,7 +49,8 @@ class MMPFile:
             mmp_time = 0
         if mmp_time < mmpz_time:
             with project_copy.open('w') as _out:
-                subprocess.run(['lmms', '-d', self.filename], stdout=_out)
+                # subprocess.run(['lmms', '-d', self.filename], stdout=_out)
+                subprocess.run(['lmms', 'dump', self.filename], stdout=_out)
         data = et.ElementTree(file=str(project_copy))
         root = data.getroot()
 
