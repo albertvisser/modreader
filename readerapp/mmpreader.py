@@ -1,7 +1,6 @@
 """ModReaderGui - data processing for LMMS project file
 """
 import sys
-import os
 import pathlib
 import subprocess
 import collections
@@ -11,7 +10,7 @@ try:
     import lxml.etree as et
 except ImportError:
     import xml.etree.ElementTree as et
-import readerapp.shared as shared
+from readerapp import shared
 
 
 def log(inp):
@@ -42,15 +41,14 @@ class MMPFile:
         project_file = pathlib.Path(self.filename)
         mmpz_time = project_file.stat().st_mtime
         project_name = project_file.stem
-        project_copy = pathlib.Path('/tmp/{}.mmp'.format(project_name))
+        project_copy = pathlib.Path(f'/tmp/{project_name}.mmp')
         try:
             mmp_time = project_copy.stat().st_mtime
         except FileNotFoundError:
             mmp_time = 0
         if mmp_time < mmpz_time:
             with project_copy.open('w') as _out:
-                # subprocess.run(['lmms', '-d', self.filename], stdout=_out)
-                subprocess.run(['lmms', 'dump', self.filename], stdout=_out)
+                subprocess.run(['lmms', 'dump', self.filename], stdout=_out, check=False)
         data = et.ElementTree(file=str(project_copy))
         root = data.getroot()
 
@@ -90,8 +88,8 @@ class MMPFile:
         self.patterndata = patterndata
 
         maxpattnum = 0
-        for name, data in trackdata_split.items():
-            newmax = max((x[0] for x in data))
+        for data in trackdata_split.values():
+            newmax = max(x[0] for x in data)
             if newmax > maxpattnum:
                 maxpattnum = newmax
         maxpattnum += 1
@@ -207,7 +205,7 @@ class MMPFile:
                         break
                 if y:
                     y = y.join(('(', ')'))
-                bb_inst.append((i + 1, ' '.join((x, y))))
+                bb_inst.append((i + 1, f'{x} {y}'))
             data.extend(shared.build_inst_list(bb_inst, "Beat/Bassline instruments:"))
             if not full:
                 data.extend(shared.build_patt_header("Beat/Bassline patterns:"))
@@ -262,8 +260,7 @@ class MMPFile:
                 druminst = pitch + shared.octave_length + shared.note2drums
                 notestr = shared.get_inst_name(druminst)
                 if notestr == '?':
-                    unlettered.add('no letter yet for `{}`'.format(
-                        shared.gm_drums[druminst][1]))
+                    unlettered.add(f'no letter yet for `{shared.gm_drums[druminst][1]}`')
                 events[notestr].append(ev)
             for letter in shared.standard_printseq:
                 printable = [shared.line_start]
@@ -284,7 +281,6 @@ class MMPFile:
     def print_drums(self, sample_list, printseq, _out=sys.stdout):
         """collect the drum instrument events and print them pattern by pattern
         """
-        pass
 
     def print_instrument(self, trackname, _out=sys.stdout):
         """print the events for an instrument as a piano roll
@@ -437,12 +433,10 @@ class MMPFile:
     def prepare_print_drums(self, sample_list):
         """build complete timeline for drumtrack events
         """
-        pass
 
     def print_drums_full(self, sample_list, printseq, _out=sys.stdout):
         """build complete timeline for combined drum instrument events
         """
-        pass
 
     def print_all_instruments_full(self, instlist, printseq, opts, _out=sys.stdout):
         """output all instrument timelines to the "general" file
@@ -455,7 +449,7 @@ class MMPFile:
         instlist = list(instlist) + list(self.druminst)
         for eventindex in range(0, self.total_length, interval):
             for trackname in instlist:  # denk aan volgorde!
-                print('{}:'.format(trackname), file=_out)
+                print(f'{trackname}:', file=_out)
                 is_drumtrack = trackname in self.druminst
                 if is_drumtrack:
                     notes_to_show = [x for x in sorted(self.all_notes[trackname],

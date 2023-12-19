@@ -20,13 +20,7 @@ import logging
 import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as gui
 import PyQt5.QtCore as core
-import readerapp.shared as shared
-import readerapp.modreader as modreader
-import readerapp.midreader as midreader
-import readerapp.medreader as medreader
-import readerapp.mmpreader as mmpreader
-import readerapp.rppreader as rppreader
-import readerapp.xmreader as xmreader
+from readerapp import shared, modreader, midreader, medreader, mmpreader, rppreader, xmreader
 
 mru_filename = pathlib.Path(__file__).parent / 'mru_files'
 
@@ -291,7 +285,7 @@ class MainFrame(qtw.QWidget):
             fmt = '\t\t'
             if shortcut in ['Ctrl+Shift+Down']:
                 fmt = '\t'
-            self.helpitems.append('{}{}{}'.format(shortcut, fmt, name))
+            self.helpitems.append(f'{shortcut}{fmt}{name}')
 
     def activate_filename(self):
         """Move focus to the filename field
@@ -311,13 +305,13 @@ class MainFrame(qtw.QWidget):
             oupad = str(shared.location)
         name = qtw.QFileDialog.getOpenFileName(
             self, "Open File", oupad,
-            "Known files ({})".format(' '.join(['*.{}'.format(x)
-                                                for x in shared.known_files])))[0]
-        if name != "" and name != oupad:
+            "Known files ({})".format(' '.join([f'*.{x}' for x in shared.known_files])))[0]
+        if name not in ("", oupad):
             self.ask_modfile.setEditText(name)
             if name not in self._mru_items:
                 self._mru_items.append(name)
-                if len(self._mru_items) > 9:
+                max_items = 9
+                if len(self._mru_items) > max_items:
                     self._mru_items.pop(0)
                 self.ask_modfile.addItem(name)
 
@@ -342,11 +336,10 @@ class MainFrame(qtw.QWidget):
             self.nondrums = [x[0] for x in self.loaded.samples.values() if x[0]]
             self.drums = []
         elif self.ftype == 'mid':
+            drumchnl = 10
             self.loaded = midreader.MidiFile(pad)
-            self.nondrums = [x[0] for x in self.loaded.instruments.values()
-                             if x[1] != 10]
-            self.drums = [x[0] + " (*)" for x in self.loaded.instruments.values()
-                          if x[1] == 10]
+            self.nondrums = [x[0] for x in self.loaded.instruments.values() if x[1] != drumchnl]
+            self.drums = [x[0] + " (*)" for x in self.loaded.instruments.values() if x[1] == drumchnl]
         elif self.ftype == 'med':
             self.loaded = medreader.MedModule(pad)
             self.nondrums = [x[1] for x in self.loaded.samplenames]
@@ -355,8 +348,7 @@ class MainFrame(qtw.QWidget):
             self.loaded = mmpreader.MMPFile(pad)
             self.nondrums = self.loaded.tracknames
             if self.loaded.bbtracknames:
-                self.drums = ['{} ({})'.format(x, x[0])
-                              for x in self.loaded.bbtracknames]
+                self.drums = [f'{x} ({x[0]})' for x in self.loaded.bbtracknames]
             else:
                 self.drums = []
         elif self.ftype == 'rpp':
@@ -443,7 +435,7 @@ class MainFrame(qtw.QWidget):
                         letter += shared.samp2other[x]
                     except KeyError:
                         letter += x[0]
-            item.setText('{} ({})'.format(test, letter))
+            item.setText(f'{test} ({letter})')
             self.mark_samples.addItem(item)
             self.mark_samples.setCurrentItem(item)
             item.setSelected(True)
@@ -537,13 +529,12 @@ class MainFrame(qtw.QWidget):
             inst, data = selected[0].text().rsplit(None, 1)
         except ValueError:
             inst, data = selected[0].text(), ''
-        text, ok_ = qtw.QInputDialog.getText(
-            self, self.title,
-            'Enter letter(s) to be printed for "{}"\n("*" for a midi drumtrack'
-            ')'.format(inst), text=data[1:-1])
+        text, ok_ = qtw.QInputDialog.getText(self, self.title,
+                                             f'Enter letter(s) to be printed for "{inst}"\n'
+                                             '("*" for a midi drumtrack)', text=data[1:-1])
         if ok_:
             if text:
-                inst += " ({})".format(text)
+                inst += f" ({text})"
             selected[0].setText(inst)
 
     def remove(self):
@@ -623,7 +614,7 @@ class MainFrame(qtw.QWidget):
             first = True
             for x in set(''.join([x for x in letters])):
                 if x not in printseq:
-                    new = qtw.QListWidgetItem('dummy_sample ({})'.format(x))
+                    new = qtw.QListWidgetItem(f'dummy_sample ({x})')
                     self.mark_samples.addItem(new)
                     self.mark_samples.scrollToItem(new)
                     self.mark_samples.currentItem().setSelected(False)
@@ -635,8 +626,8 @@ class MainFrame(qtw.QWidget):
                     self.remove_button.setEnabled(True)
                     ready = False
             if not ready:
-                msg = ' '.join(('Please relocate the dummy sample(s)',
-                                'so their letters are in the right position'))
+                msg = ('Please relocate the dummy sample(s) so their letters are in the right'
+                       ' position')
 
         self._assigned = samples, letters, printseq
         return msg
@@ -654,9 +645,7 @@ class MainFrame(qtw.QWidget):
     def get_instrument_filename(self, name):
         """determine filename for "regular" instrument file
         """
-        return str(pathlib.Path(self.newdir) / '{}-{}-{}'.format(self.dts,
-                                                                 self.ftype,
-                                                                 name))
+        return str(pathlib.Path(self.newdir) / f'{self.dts}-{self.ftype}-{name}')
 
     def process_modfile(self):
         """Create output for NoiseTracker/SoundTracker/MadTracker module
@@ -676,22 +665,18 @@ class MainFrame(qtw.QWidget):
 
         with open(self.get_general_filename(), "w") as out:
             if drums:
-                self.loaded.print_general_data(drums, self.check_full.isChecked(),
-                                               out)
+                self.loaded.print_general_data(drums, self.check_full.isChecked(), out)
             else:
-                self.loaded.print_general_data(full=self.check_full.isChecked(),
-                                               _out=out)
+                self.loaded.print_general_data(full=self.check_full.isChecked(), _out=out)
         self.loaded.prepare_print_instruments(nondrums)
         self.loaded.prepare_print_drums(printseq)
         options = (self.max_events.value(), self.check_nonempty.isChecked())
         if self.check_allinone.isChecked():
             druminst = [(x, y) for x, y in drums if len(y) == 1]
-            log('calling print_all_instruments_full with args {} {} {} '
-                '{} {}'.format(nondrums, druminst, printseq, options,
-                               self.get_general_filename()))
+            log(f'calling print_all_instruments_full with args {nondrums} {druminst} {printseq} '
+                '{options} {self.get_general_filename()}')
             with open(self.get_general_filename(), 'a') as _out:
-                self.loaded.print_all_instruments_full(nondrums, druminst, printseq,
-                                                       options, _out)
+                self.loaded.print_all_instruments_full(nondrums, druminst, printseq, options, _out)
             return
         if drums:
             with open(self.get_drums_filename(), "w") as out:
@@ -760,16 +745,13 @@ class MainFrame(qtw.QWidget):
 
         with open(self.get_general_filename(), "w") as out:
             if drums:
-                log('calling print_general_data with args {} {} {}'.format(
-                    drums, self.check_full.isChecked(), out))
-                self.loaded.print_general_data(drums, self.check_full.isChecked(),
-                                               out)
+                log(f'calling print_general_data with args {drums} {self.check_full.isChecked()}'
+                    ' {out}')
+                self.loaded.print_general_data(drums, self.check_full.isChecked(), out)
             else:
-                log('calling print_general_data with args {} {}'.format(
-                    self.check_full.isChecked(), out))
-                self.loaded.print_general_data(full=self.check_full.isChecked(),
-                                               _out=out)
-        log('calling prepare_print_instruments with argument {}'.format(nondrums))
+                log(f'calling print_general_data with args {self.check_full.isChecked()} {out}')
+                self.loaded.print_general_data(full=self.check_full.isChecked(), _out=out)
+        log(f'calling prepare_print_instruments with argument {nondrums}')
         self.loaded.prepare_print_instruments(nondrums)
         self.loaded.prepare_print_drums(printseq)
         if self.check_allinone.isChecked():
@@ -790,8 +772,7 @@ class MainFrame(qtw.QWidget):
                 if self.check_full.isChecked():
                     self.loaded.print_instrument_full(name, options, out)
                 else:
-                    log('calling print_instrument with args {} {}'.format(number,
-                                                                          out))
+                    log(f'calling print_instrument with args {number} {out}')
                     self.loaded.print_instrument(number, out)
 
     def process_mmpfile(self):
@@ -815,54 +796,42 @@ class MainFrame(qtw.QWidget):
 
         ## log('calling self.loaded.prepare_print_instruments with argument {}'.format(
             ## [x for x, y in sample_map if y == '*']))
-        log('calling prepare_print_instruments with argument {}'.format(
-            drumkits))
+        log(f'calling prepare_print_instruments with argument {drumkits}')
         self.loaded.prepare_print_instruments(drumkits)
         # m.z. self.loaded.prepare_print_instruments(inst_samples) ?
         if self.loaded.bbtracknames:
-            log('calling prepare_print_beat_bassline with args {}'
-                ' {}'.format(sample_map, printseq))
+            log(f'calling prepare_print_beat_bassline with args {sample_map} {printseq}')
             self.loaded.prepare_print_beat_bassline(sample_map, printseq)
         options = (self.max_events.value(), self.check_nonempty.isChecked())
         if self.check_allinone.isChecked():
             ## instlist = [x.rsplit(' ', 1) for x in list_items(self.list_samples)]
             with open(self.get_general_filename(), 'a') as _out:
-                log('calling print_all_instruments_full with args {}'
-                    ' {} {} {}'.format(inst_samples, printseq, options, _out))
-                self.loaded.print_all_instruments_full(inst_samples,
-                                                       printseq, options, _out)
+                log(f'calling print_all_instruments_full with args {inst_samples} {printseq}'
+                    ' {options} {_out}')
+                self.loaded.print_all_instruments_full(inst_samples, printseq, options, _out)
             return
 
         if [x for x, y in sample_map if y != '*']:
             if self.loaded.bbtracknames:
                 with open(self.get_instrument_filename('bbdrums'), "w") as _out:
                     if self.check_full.isChecked():
-                        log('calling print_beat_bassline_full with args'
-                            ' {} {} {}'.format(printseq, options, _out))
-                        self.loaded.print_beat_bassline_full(printseq, options,
-                                                             _out=_out)
+                        log(f'calling print_beat_bassline_full with args {printseq} {options} {_out}')
+                        self.loaded.print_beat_bassline_full(printseq, options, _out=_out)
                     else:
-                        log('calling print_beat_bassline with args {}'
-                            ' {} {}'.format(sample_map, printseq, _out))
-                        self.loaded.print_beat_bassline(sample_map, printseq,
-                                                        _out=_out)
+                        log(f'calling print_beat_bassline with args {sample_map} {printseq} {_out}')
+                        self.loaded.print_beat_bassline(sample_map, printseq, _out=_out)
             else:
                 with open(self.get_drums_filename(), "w") as _out:
-                    log('calling print_drums with args {} {} '
-                        '{}'.format(sample_map, printseq, _out))
+                    log(f'calling print_drums with args {sample_map} {printseq} {_out}')
                     self.loaded.print_drums(sample_map, printseq, _out=_out)
 
         for trackname in [x for x, y in sample_map if y == '*']:
             with open(self.get_instrument_filename(trackname), "w") as _out:
                 if self.check_full.isChecked():
-                    log('calling print_instrument_full with args '
-                        '{} {} {}'.format(trackname, options, _out))
-                    unlettered = self.loaded.print_instrument_full(trackname,
-                                                                   options,
-                                                                   _out=_out)
+                    log(f'calling print_instrument_full with args {trackname} {options} {_out}')
+                    unlettered = self.loaded.print_instrument_full(trackname, options, _out=_out)
                 else:
-                    log('calling print_drumtrack with args {} '
-                        '{}'.format(trackname, _out))
+                    log(f'calling print_drumtrack with args {trackname} {_out}')
                     unlettered = self.loaded.print_drumtrack(trackname, _out=_out)
             if unlettered:
                 qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
@@ -870,12 +839,10 @@ class MainFrame(qtw.QWidget):
         for trackname in inst_samples:
             with open(self.get_instrument_filename(trackname), "w") as _out:
                 if self.check_full.isChecked():
-                    log('calling print_instrument_full with args {} '
-                        '{} {}'.format(trackname, options, _out))
+                    log(f'calling print_instrument_full with args {trackname} {options} {_out}')
                     self.loaded.print_instrument_full(trackname, options, _out=_out)
                 else:
-                    log('calling print_instrument with args {} '
-                        '{}'.format(trackname, _out))
+                    log(f'calling print_instrument with args {trackname} {_out}')
                     self.loaded.print_instrument(trackname, _out)
 
     def process_rppfile(self):
@@ -888,7 +855,8 @@ class MainFrame(qtw.QWidget):
             self.loaded.print_general_data(self.check_full.isChecked(), _out)
         # kijken of er dubbele namen zijn
         test, dubbel = set(), set()
-        for trackno, data in self.loaded.instruments.items():
+        # for trackno, data in self.loaded.instruments.items():
+        for data in self.loaded.instruments.values():
             if data in test:
                 dubbel.add(data)
             else:
@@ -994,5 +962,5 @@ class MainFrame(qtw.QWidget):
 def main():
     "main function"
     app = qtw.QApplication(sys.argv)
-    win = MainFrame(app)
+    MainFrame(app)
     sys.exit(app.exec_())

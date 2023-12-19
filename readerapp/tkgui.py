@@ -14,8 +14,9 @@ creates a collection of files containing:
 """
 import os.path
 import datetime
+import contextlib
 import tkinter as tk
-import tkinter.ttk as ttk
+from tkinter import ttk
 import tkinter.filedialog as tkFileDialog
 import tkinter.messagebox as tkMessageBox
 import modreader
@@ -283,14 +284,12 @@ class Application(tk.Frame):
         ## print('\ninitial:', self.drums)
         selindx = selected[0]
         self.text_ = ""
-        win = AskString(self, prompt='Enter letter(s) to be printed for "{}"'.format(
-            self.drums[selindx]))
+        win = AskString(self, prompt=f'Enter letter(s) to be printed for "{self.drums[selindx]}"')
         win.focus_set()
         win.grab_set()
         win.wait_window()
         if self.text_:
-            inst = self.drums[selindx].split()[0]
-            inst += " ({})".format(self.text_)
+            inst = self.drums[selindx].split()[0] + f" ({self.text_})"
             self.mark_samples.delete(selindx)
             self.mark_samples.insert(selindx, inst)
             self.drums[selindx] = inst
@@ -319,21 +318,16 @@ class Application(tk.Frame):
                 self.nondrums[ix] = (num + 1, data[0])
         pad = self.filenaam.get()
         newdir = os.path.splitext(pad)[0]
-        try:
+        with contextlib.suppress(FileExistsError):
             os.mkdir(newdir)
-        except FileExistsError:
-            pass
         datetimestamp = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
-        with open(os.path.join(newdir, '{}-basic'.format(datetimestamp)),
-                  "w") as out:
+        with open(os.path.join(newdir, f'{datetimestamp}-basic'), "w") as out:
             self.loaded.print_module_details(out)
         if self.drums:
-            with open(os.path.join(newdir, '{}-drums'.format(datetimestamp)),
-                      "w") as out:
+            with open(os.path.join(newdir, 'f{datetimestamp}-drums'), "w") as out:
                 self.loaded.print_drums(self.drums, printseq, out)
         for number, name in self.nondrums:
-            with open(os.path.join(newdir, '{}-{}'.format(datetimestamp, name)),
-                      "w") as out:
+            with open(os.path.join(newdir, 'f{datetimestamp}-{name}'), "w") as out:
                 self.loaded.print_instrument(number, out)
         tkMessageBox.showinfo('Yay', 'Done')
 

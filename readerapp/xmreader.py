@@ -3,8 +3,9 @@
 import sys
 import struct
 import collections
+import contextlib
 import logging
-import readerapp.shared as shared
+from readerapp import shared
 
 
 def log(inp):
@@ -25,7 +26,7 @@ def get_note_name(inp):
 def read_string(stream, length):
     """read data from the file and return as a text string
     """
-    text = struct.unpack('{}s'.format(length), stream.read(length))
+    text = struct.unpack(f'{length}s', stream.read(length))
     try:
         result = str(text[0], encoding='utf-8')
     except UnicodeDecodeError:
@@ -50,10 +51,8 @@ class ExtModule:
         renumber = collections.defaultdict(list)
         oldpattnum, newpattnum = -1, 0
         for pattstart in sorted(self._raw_pattern_data):
-            try:
+            with contextlib.suppress(KeyError):
                 oldpattnum = original_pattern_map[pattstart]
-            except KeyError:
-                pass
             newpattnum += 1
             renumber[oldpattnum].append(newpattnum)
             self._pattern_map[pattstart] = newpattnum
@@ -88,7 +87,7 @@ class ExtModule:
                 self._pattern_data[pattnum][0][0] = []
                 self._pattern_data[pattnum][0]['len'] = pattlen
         for pattnum, pattdata in sorted(self._pattern_data.items()):
-            for inst, instdata in pattdata.items():
+            for instdata in pattdata.values():
                 if instdata['len']:
                     pattlen = instdata['len']
                     break
@@ -267,8 +266,7 @@ class ExtModule:
         for pattnum, patt in drumpatterns.items():
             lengths = [x[1] for x in patt['len']]
             if max(lengths) != lengths[0] or min(lengths) != lengths[0]:
-                print('ongelijke lengtes in pattern {}: {}'.format(
-                    pattnum, self.pattlengths[pattnum]))
+                print(f'ongelijke lengtes in pattern {pattnum}: {self.pattlengths[pattnum]}')
             patt['len'] = lengths[0]
 
             try:
@@ -310,8 +308,8 @@ class ExtModule:
         data.extend(shared.build_inst_list(instruments))
         # pattern lengtes voor alle playseqs aanvullen
         ## combined_playseqs = collections.defaultdict(list)
-        maxlen = max((len(x) for x in self.playseqs.values()))
-        if maxlen != min((len(x) for x in self.playseqs.values())):
+        maxlen = max(len(x) for x in self.playseqs.values())
+        if maxlen != min(len(x) for x in self.playseqs.values()):
             print('Alarm! Niet alle tracks hebben evenveel pattern events',
                   file=_out)
         pattlens = [0] * (maxlen)
@@ -325,7 +323,7 @@ class ExtModule:
                         print('Alarm! Verschillende lengtes voor pattern event', ix,
                               file=_out)
         self.pattern_lengths = pattlens
-        self.full_length = sum((x for x in self.pattern_lengths))
+        self.full_length = sum(x for x in self.pattern_lengths)
 
         if not full:
             data.extend(shared.build_patt_header())
@@ -434,7 +432,7 @@ class ExtModule:
         for sample, _ in samplist:  # sampname
 
             ## pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
-            for pattnum, pattern in enumerate(self.pattern_data[sample]):
+            for pattern in self.pattern_data[sample]:
                 self.all_notes[sample].update(pattern.keys())
             self.all_notes[sample].discard('len')
             self.all_notes[sample] = [
@@ -504,7 +502,7 @@ class ExtModule:
                 empty = sep.join(
                     (self.full_length - eventindex) * [shared.empty_note])
             for _, sampname in samplist:
-                print('{}:'.format(sampname), file=_out)
+                print(f'{sampname}:', file=_out)
                 sample = inst2sam[sampname]
                 not_printed = True
                 for note in self.all_notes[sample]:

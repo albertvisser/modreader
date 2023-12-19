@@ -69,10 +69,10 @@ def get_inst_name(inp):
 def build_header(filetype, filename, text=''):
     """return standard header for "general" file
     """
-    title = "Details of {} {}".format(filetype, filename)
+    title = f"Details of {filetype} {filename}"
     result = [title, '=' * len(title), '']
     if text:
-        result.append("Description: {}".format(text))
+        result.append(f"Description: {text}")
     else:
         result.append("No description available")
     result.extend(['', ''])
@@ -86,7 +86,7 @@ def build_inst_list(item_list, first_line=''):
         first_line = "Instruments:"
     result = [first_line, '']
     for ix, item in item_list:
-        result.append("        {:>2} {}".format(ix, item))
+        result.append(f"        {ix:>2} {item}")
     result.append('')
     return result
 
@@ -102,10 +102,7 @@ def build_patt_header(text=''):
 def build_patt_list(seq, text, item_list):
     """return pattern list in standard format
     """
-    if text:
-        result = ["    {:>2} {}".format(seq, text), '']
-    else:
-        result = []
+    result = [f"    {seq:>2} {text}", ''] if text else []
     printable = []
     pattline_start = "         "
     for ix, item in enumerate(item_list):
@@ -116,7 +113,7 @@ def build_patt_list(seq, text, item_list):
         if item == -1:
             printable.append(" . ")
         else:
-            printable.append("{:>2} ".format(item))
+            printable.append(f"{item:>2} ")
     if printable != [pattline_start]:
         result.append(''.join(printable))
     result.append('')

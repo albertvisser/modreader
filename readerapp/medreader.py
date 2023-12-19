@@ -4,7 +4,7 @@ import sys
 import struct
 import collections
 import logging
-import readerapp.shared as shared
+from readerapp import shared
 
 
 def log(inp):
@@ -50,7 +50,7 @@ def read_pointer(stream):
 def read_string(stream, length):
     """read data from the file and return as a text string
     """
-    text = struct.unpack('{}s'.format(length), stream.read(length))
+    text = struct.unpack(f'{length}s', stream.read(length))
     try:
         result = str(text[0], encoding='utf-8')
     except UnicodeDecodeError:
@@ -205,13 +205,11 @@ class MedModule:
     def checks(self):
         """compare some values read from the file
         """
-        return (
-            'songlen = {}, len of raw pattern list = {}'.format(self.songlen,
-                                                                len(self.raw_playseq)),
-            'number of samples = {}, len of sample list = {}'.format(
-                self.sample_count, len(self.samplenames)),
-            'number of patterns = {}, len of pattern data list = {}'.format(
-                self.pattern_count, len(self.pattern_data)))
+        return (f'songlen = {self.songlen}, len of raw pattern list = {len(self.raw_playseq)}',
+                f'number of samples = {self.sample_count}, len of sample list ='
+                f' {len(self.samplenames)}',
+                f'number of patterns = {self.pattern_count}, len of pattern data list ='
+                f' {len(self.pattern_data)}')
 
     def remove_duplicate_patterns(self, sampnum):
         """show patterns only once for incontiguous timelines
@@ -281,7 +279,7 @@ class MedModule:
         for pattnum, patt in drumpatterns.items():
             lengths = [x[1] for x in patt['len']]
             if max(lengths) != lengths[0] or min(lengths) != lengths[0]:
-                print('ongelijke lengtes in pattern {}: {}'.format(pattnum, lengths))
+                print(f'ongelijke lengtes in pattern {pattnum}: {lengths}')
             patt['len'] = lengths[0]
 
             try:
@@ -436,7 +434,7 @@ class MedModule:
 
         for sampnum, sample in instlist:
 
-            for pattnum, pattern in enumerate(self.pattern_data[sampnum]):
+            for pattern in self.pattern_data[sampnum]:
                 self.all_notes[sample].update(pattern.keys())
             self.all_notes[sample].discard('len')
             self.all_notes[sample] = [
@@ -505,7 +503,7 @@ class MedModule:
                 empty = sep.join(
                     (total_length - eventindex) * [shared.empty_note])
             for _, sample in instlist:
-                print('{}:'.format(sample), file=_out)
+                print('f{sample}:', file=_out)
                 not_printed = True
                 for note in self.all_notes[sample]:
                     notes = self.all_note_tracks[sample][note]

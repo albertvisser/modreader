@@ -4,7 +4,7 @@
 import sys
 import collections
 import logging
-import readerapp.shared as shared
+from readerapp import shared
 
 
 def log(inp):
@@ -160,7 +160,7 @@ class ModFile:
         newlentab = {}
         self._pattern_data = collections.defaultdict(lambda: collections.defaultdict(list))
         ophogen = 0
-        samples = [x for x in data.keys() if x]
+        samples = [x for x in data if x]
         for pattnum, pattlen in lentab:
             # bepaal of pattern gesplitst moet worden
             split = pattlen > shared.per_line
@@ -331,7 +331,7 @@ class ModFile:
                         new = inst if i in events else shared.empty_drums
                         printable += new
                     if printable != empty_patt:
-                        print(''.join((shared.line_start, printable)), file=_out)
+                        print(f'{shared.line_start}{printable}', file=_out)
                     ## print('', file=_out)
             print('', file=_out)
 
@@ -505,7 +505,7 @@ class ModFile:
                 ## empty = sep.join((total_length - eventindex) * [shared.empty_note])
             for sample, instname in instlist:
 
-                print('{}:'.format(instname), file=stream)
+                print('f{instname}:', file=stream)
                 not_printed = True
                 for note in reversed(sorted(self.all_notes[sample],
                                             key=shared.getnotenum)):

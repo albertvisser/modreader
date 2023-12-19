@@ -4,7 +4,7 @@ import sys
 import collections
 import pprint
 import logging
-import readerapp.shared as shared
+from readerapp import shared
 
 
 def log(inp):
@@ -177,7 +177,7 @@ class RppFile:
                 oldpattnum, oldpattstart = item[:2]
                 abspattstart += oldpattstart
                 oldpattnum2, oldpattprops, oldpattdata = self.patterns[track][pattix]
-                log("{} {} {}".format(oldpattnum, oldpattnum2, abspattstart))
+                log(f"{oldpattnum} {oldpattnum2} {abspattstart}")
                 if oldpattnum2 > oldpattnum or not oldpattdata:
                     continue    # no data for pattern (just event c0 after event c0)
                 elif oldpattnum2 != oldpattnum:     # should never happen
@@ -245,7 +245,7 @@ class RppFile:
         for track, pattdata in new_pattern_list.items():
             tempdict = dict(pattdata)
             new_patt_list = []
-            for pattnum, pattstart in enumerate(self.pattstarts[track]):
+            for pattstart in self.pattstarts[track]:
                 try:
                     new_patt_list.append((pattstart[0], tempdict[pattstart[0]]))
                 except KeyError:
@@ -332,21 +332,21 @@ class RppFile:
         self.total_length = 0
         for trackno in self.instruments:
             pattno, pattstart, pattlen = self.old_pattern_list[trackno][-1]
-            log('{}'.format(trackno, pattno, pattstart, pattlen))
+            log(f'{trackno} {pattno} {pattstart} {pattlen}')
             if pattstart + pattlen > self.total_length:
                 self.total_length = pattstart + pattlen
-                log('self.total_length wordt {}'.format(self.total_length))
+                log(f'self.total_length wordt {self.total_length}')
             # determine highest event on track
             for events in self.old_patterns[trackno][-1][2].values():
                 last_event = events[-1]
                 if pattstart + last_event == self.total_length:
                     self.total_length += 1
-                    log('self.total_length wordt {}'.format(self.total_length))
+                    log(f'self.total_length wordt {self.total_length}')
 
         test = self.total_length // 32
         if test * 32 != self.total_length:
             self.total_length = (test + 1) * 32
-        log('{} {}'.format(test, self.total_length))
+        log(f'{test} {self.total_length}')
 
         for trackno in self.instruments:
             is_drumtrack = self.old_patterns[trackno][0][1]['drumtrack']
@@ -369,7 +369,7 @@ class RppFile:
 
             # fill in the separate events
             for item in self.old_pattern_list[trackno]:
-                if len(item) == 2:  # < 3
+                if len(item) == len(['pattnum', 'pattstart']):  #  2:  # < 3
                     continue    # no events found, so no length recorded
                 pattnum, pattstart = item[:2]
                 for note in self.all_notes[trackno]:
@@ -446,7 +446,7 @@ class RppFile:
                 if is_drumtrack:
                     print('drums:', file=stream)
                 else:
-                    print('{}:'.format(instname), file=stream)
+                    print(f'{instname}:', file=stream)
                 delim = shared.sep[is_drumtrack]
                 empty = delim.join(interval * [shared.empty[is_drumtrack]])
                 if eventindex + interval > full_length:
@@ -461,7 +461,7 @@ class RppFile:
                 for note in all_notes:
                     line = delim.join(self.all_note_tracks[trackno][note]
                                       [eventindex:eventindex + interval])
-                    log('note {} line: {}'.format(note, line))
+                    log(f'note {note} line: {line}')
                     if clear_empty and (line == empty or not line):
                         pass
                     else:

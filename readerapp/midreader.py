@@ -7,7 +7,7 @@ import subprocess
 import csv
 import collections
 import logging
-import readerapp.shared as shared
+from readerapp import shared
 
 
 def log(inp):
@@ -32,7 +32,7 @@ class MidiFile:
         """
         outfile = pathlib.Path(self.filename).with_suffix('.csv').name
         outfile = pathlib.Path('/tmp') / outfile
-        subprocess.run(['midicsv', self.filename, str(outfile)])
+        subprocess.run(['midicsv', self.filename, str(outfile)], check=False)
         trackdata = collections.defaultdict(set)
         with outfile.open() as _in:
             csvdata = csv.reader(_in)
@@ -51,8 +51,8 @@ class MidiFile:
                     if not self.instruments[track][1]:
                         self.instruments[track][1] = int(data[0]) + 1
                     elif int(data[0]) + 1 != self.instruments[track][1]:
-                        self.weirdness.append('in-track channel change on track '
-                                              '{} at time {}'.format(track, tick))
+                        self.weirdness.append('in-track channel change on track {track}'
+                                              ' at time {tick}')
                     if int(data[2]) != 0:   # don't count velocity set to 0
                         trackdata[track].add((tick, int(data[1])))
         duration = self.resolution // 4
@@ -86,7 +86,7 @@ class MidiFile:
         """create the "overview" file (sample and pattern lists)
         """
         data = shared.build_header("module", self.filename)
-        data.extend(shared.build_inst_list([(x, '{} (chn. {})'.format(y[0], y[1]))
+        data.extend(shared.build_inst_list([(x, f'{y[0]} (chn. {y[1]})')
                                             for x, y in self.instruments.items()]))
         if self.weirdness:
             data.extend([''] + [x for x in self.weirdness])
@@ -125,8 +125,7 @@ class MidiFile:
                 if is_drumtrack:
                     notestr = shared.get_inst_name(pitch + shared.note2drums)
                     if notestr == '?':
-                        unlettered.add('no letter yet for `{}`'.format(
-                            shared.gm_drums[pitch - 35][1]))
+                        unlettered.add(f'no letter yet for `{shared.gm_drums[pitch - 35][1]}`')
                     else:
                         try:
                             key = shared.standard_printseq.index(notestr)
@@ -172,7 +171,7 @@ class MidiFile:
 
             patterns = dict(self.patterns[trackno])
             for _, pattdict in self.patterns[trackno]:
-                self.all_notevals[trackno].update([x for x in pattdict.keys()])
+                self.all_notevals[trackno].update(list(pattdict.keys()))
             pattlist = []
             seq = 0
             for pattseq, pattnum in sorted(self.pattern_lists[trackno]):
@@ -277,7 +276,7 @@ class MidiFile:
                     print('drums:', file=stream)
                 else:
                     notes_to_show = [x for x in reversed(sorted(all_notevals))]
-                    print('{}:'.format(instname), file=stream)
+                    print(f'{instname}:', file=stream)
 
                 not_printed = True
                 for note in notes_to_show:
