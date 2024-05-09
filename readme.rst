@@ -72,7 +72,7 @@ are presented in the right way.
 Usage
 -----
 
-Enter ``python3 modreadergui.py`` on the command line. You may leave out the python3 part.
+Enter ``python3 modreadergui.py`` on the command line. You may leave out the python3 part if you make the script executable.
 
 Requirements
 ------------
