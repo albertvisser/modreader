@@ -127,8 +127,7 @@ class ExtModule:
             for pattnum in range(pattern_count):
                 _xm.seek(pattstart)        # position at start of pattern header
                 size, _, rows, data_size = struct.unpack('<LBHH', _xm.read(9))
-                log('pattern {} at {}; size {} rows {} datasize {}'.format(
-                    pattnum, hex(pattstart), size, rows, data_size))
+                log(f'pattern {pattnum} at {hex(pattstart)}; {size=} {rows=} {data_size=}')
                 orig_pattstart = pattstart
                 pattstart += size
                 self._raw_pattern_map[pattstart] = pattnum
@@ -366,7 +365,7 @@ class ExtModule:
         for pattnum, pattern in enumerate(self.pattern_data[sample]):
             print(shared.patt_start.format(pattnum + 1), file=_out)
             pattlen = pattern.pop('len')
-            for note in reversed(sorted([x for x in pattern])):
+            for note in reversed(sorted(list(pattern))):
                 events = pattern[note]
                 if events:
                     print(shared.line_start, end='', file=_out)
@@ -385,7 +384,7 @@ class ExtModule:
         """build complete timeline for drum instrument events
         """
         self.all_drum_events = collections.defaultdict(list)
-        ## print(self.initial_patterns, file=_out)
+        # print(self.initial_patterns, file=_out)
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
             pattlen = self.pattern_lengths[pattseq]
             initial_patt = pattlen * [shared.empty_drums]
@@ -404,7 +403,9 @@ class ExtModule:
         opts indicates how many events per line and whether to print "empty" lines
         """
         interval, clear_empty = opts
-        interval *= 2
+        if self.short_format:
+            interval *= 2
+        sep = shared.eventsep(True, self.short_format)
         empty = interval * shared.empty_drums
 
         for eventindex in range(0, self.full_length, interval):
@@ -412,8 +413,7 @@ class ExtModule:
                 empty = (self.full_length - eventindex) * shared.empty_drums
             not_printed = True
             for inst in printseq:
-                line = ''.join(
-                    self.all_drum_events[inst][eventindex:eventindex + interval])
+                line = sep.join(self.all_drum_events[inst][eventindex:eventindex + interval])
                 if clear_empty and (line == empty or not line):
                     pass
                 else:
@@ -435,8 +435,7 @@ class ExtModule:
             for pattern in self.pattern_data[sample]:
                 self.all_notes[sample].update(pattern.keys())
             self.all_notes[sample].discard('len')
-            self.all_notes[sample] = [
-                x for x in reversed(sorted(self.all_notes[sample]))]
+            self.all_notes[sample] = list(reversed(sorted(self.all_notes[sample])))
 
             for pattseq, pattnum in enumerate(self.playseqs[sample]):
                 pattlen = self.pattern_lengths[pattseq]
@@ -464,7 +463,7 @@ class ExtModule:
         opts indicates how many events per line and whether to print "empty" lines
         """
         interval, clear_empty = opts
-        sep = ' '
+        sep = shared.eventsep(False, self.short_format)
         empty = sep.join(interval * [shared.empty_note])
 
         for eventindex in range(0, self.full_length, interval):
@@ -496,7 +495,7 @@ class ExtModule:
         inst2sam = {y: x for x, y in self.samplenames}
         for eventindex in range(0, self.full_length, interval):
 
-            sep = ' '
+            sep = shared.eventsep(False, self.short_format)
             empty = sep.join(interval * [shared.empty_note])
             if eventindex + interval > self.full_length:
                 empty = sep.join(
@@ -517,7 +516,7 @@ class ExtModule:
                     print('  ', shared.empty_note, file=_out)
                 print('', file=_out)
 
-            sep = ''
+            sep = shared.eventsep(True, self.short_format)
             empty = interval * shared.empty_drums
             if eventindex + interval > self.full_length:
                 empty = (self.full_length - eventindex) * shared.empty_drums

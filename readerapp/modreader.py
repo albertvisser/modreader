@@ -11,6 +11,7 @@ def log(inp):
     "local definition to allow for picking up module name in message format"
     logging.info(inp)
 
+
 # de noten kloppen, maar de octaven worden in MilkyTracker 2 hoger weergegeven
 # om gelijk te trekken met andere weergaven daarom maar aangepast
 noteval = dict(zip([
@@ -63,8 +64,7 @@ def get_playseq(data, length):
     for bytechar in data[:length]:
         test = int(bytechar)
         result.append(test)
-        if test > highpatt:
-            highpatt = test
+        highpatt = max(test, highpatt)
     return result, highpatt
 
 
@@ -123,7 +123,7 @@ class ModFile:
                     track = []
                     for k in range(channelcount):
                         ## self.patterns[x][y].append([x for x in _in.read(4)])
-                        track.append([x for x in _in.read(4)])
+                        track.append(list(_in.read(4)))
                     pattern.append(track)
                 self.patterns[i] = pattern
 
@@ -225,7 +225,7 @@ class ModFile:
         """
         single_instrument_samples = [x for x, y in samplist if len(y) == 1]
         ## lookup = {y: x - 1 for x, y in samplist if len(y) == 1}
-        samp2lett = {x: y for x, y in samplist}
+        samp2lett = dict(samplist)
         drumpatterns = collections.defaultdict(lambda: collections.defaultdict(list))
         pattlengths = {}
         for sampnum, sampdata in self._pattern_data.items():
@@ -347,8 +347,7 @@ class ModFile:
             notes = collections.defaultdict(list)
             for timing, note in pattern:
                 notes[note].append(timing)
-            for notestr in reversed(sorted([x for x in notes],
-                                           key=shared.getnotenum)):
+            for notestr in reversed(sorted(list(notes), key=shared.getnotenum)):
                 print(shared.line_start, end='', file=_out)
                 events = notes[notestr]
 
@@ -368,9 +367,6 @@ class ModFile:
         stream is a file-like object to write the output to
         """
         self.all_drum_tracks = collections.defaultdict(list)
-        ## interval, clear_empty = opts
-        ## interval = 2 * opts[0]
-        ## empty = interval * '.'
         for pattseq, pattnum in enumerate(self.playseqs['drums']):
             if pattnum == -1:
                 pattlen = self.lengths[pattseq]
@@ -392,17 +388,19 @@ class ModFile:
         """
         total_length = sum(self.lengths)
         interval, clear_empty = opts
-        interval *= 2
-        ## empty = interval * shared.empty_drums
+        if self.short_format:
+            interval *= 2
+        sep = shared.eventsep(True, self.short_format)
+        # empty = interval * shared.empty_drums
         for eventindex in range(0, total_length, interval):
-            ## if eventindex + interval > total_length:
-                ## empty = (total_length - eventindex) * shared.empty_drums
+            # if eventindex + interval > total_length:
+            #     empty = (total_length - eventindex) * shared.empty_drums
             not_printed = True
             for inst in printseq:
                 tracks = self.all_drum_tracks[inst]
-                line = ''.join(tracks[eventindex:eventindex + interval])
-                test_empty_line = all([x == shared.empty_drums for x in
-                                       tracks[eventindex:eventindex + interval]])
+                line = sep.join(tracks[eventindex:eventindex + interval])
+                test_empty_line = all(x == shared.empty_drums for x in
+                                      tracks[eventindex:eventindex + interval])
                 ## if clear_empty and (line == empty or not line):
                 if clear_empty and (test_empty_line or not line):
                     pass
@@ -416,15 +414,13 @@ class ModFile:
     def prepare_print_instruments(self, sample_list):
         """build complete timeline for all regular instrument events
         """
-        self.all_note_tracks = collections.defaultdict(
-            lambda: collections.defaultdict(list))
+        self.all_note_tracks = collections.defaultdict(lambda: collections.defaultdict(list))
         self.all_notes = collections.defaultdict(set)
-        ## interval, clear_empty = opts
+        # interval, clear_empty = opts
 
         for sample, _ in sample_list:
 
-            pattdict = collections.defaultdict(
-                lambda: collections.defaultdict(list))
+            pattdict = collections.defaultdict(lambda: collections.defaultdict(list))
             pattdata = self.pattern_data[sample]
             for pattnum, pattern in enumerate(pattdata):
                 for item in pattern:
@@ -435,16 +431,14 @@ class ModFile:
                     pattdict[pattnum + 1][note].append(timing)
                     self.all_notes[sample].add(note)
 
-            all_notes = [x for x in reversed(sorted(self.all_notes[sample],
-                                                    key=shared.getnotenum))]
+            all_notes = list(reversed(sorted(self.all_notes[sample], key=shared.getnotenum)))
             playseq = self.playseqs[sample]
             for pattseq, pattnum in enumerate(playseq):
                 pattlen = self.lengths[pattseq]
                 if pattnum == -1:
-                    ## for note in self.all_notes[sample]:
+                    # for note in self.all_notes[sample]:
                     for note in all_notes:
-                        self.all_note_tracks[sample][note].extend(
-                            [shared.empty_note] * pattlen)
+                        self.all_note_tracks[sample][note].extend([shared.empty_note] * pattlen)
                     continue
                 pattern = pattdict[pattnum]
                 for note in all_notes:
@@ -464,17 +458,17 @@ class ModFile:
 
         if interval == -1:
             interval = total_length
-        ## empty = ' '.join(interval * [shared.empty_note])
+        # empty = ' '.join(interval * [shared.empty_note])
         for eventindex in range(0, total_length, interval):
-            ## if eventindex + interval > total_length:
-                ## empty = ' '.join((total_length - eventindex) * [shared.empty_note])
+            # if eventindex + interval > total_length:
+            #     empty = ' '.join((total_length - eventindex) * [shared.empty_note])
             not_printed = True
             for note in reversed(sorted(self.all_notes[sample],
                                         key=shared.getnotenum)):
                 tracks = self.all_note_tracks[sample][note]
                 line = ' '.join(tracks[eventindex:eventindex + interval])
-                test_empty_line = all([x == shared.empty_note for x in
-                                       tracks[eventindex:eventindex + interval]])
+                test_empty_line = all(x == shared.empty_note for x in
+                                      tracks[eventindex:eventindex + interval])
                 if clear_empty and (test_empty_line or not line):
                     pass
                 else:
@@ -484,8 +478,7 @@ class ModFile:
                 print(shared.empty_note, file=_out)
             print('', file=_out)
 
-    def print_all_instruments_full(self, instlist, druminst, drumseq, opts,
-                                   stream=sys.stdout):
+    def print_all_instruments_full(self, instlist, druminst, drumseq, opts, stream=sys.stdout):
         """output all instrument timelines to the "general" file
 
         instlist indicates the top-to-bottom sequence of instruments
@@ -495,8 +488,9 @@ class ModFile:
 
         total_length = sum(self.lengths)
         interval, clear_empty = opts
-        ## inst_dict = {y:x for x, y in inst_list}
-        ## instlist = [(inst_dict[y], y) for x, y in instlist_old]
+        #  inst_dict = {y:x for x, y in inst_list}
+        #  instlist = [(inst_dict[y], y) for x, y in instlist_old]
+        empty_drum_event = shared.empty_drums
 
         for eventindex in range(0, total_length, interval):
 
@@ -505,14 +499,13 @@ class ModFile:
                 ## empty = sep.join((total_length - eventindex) * [shared.empty_note])
             for sample, instname in instlist:
 
-                print('f{instname}:', file=stream)
+                print(f'{instname}:', file=stream)
                 not_printed = True
-                for note in reversed(sorted(self.all_notes[sample],
-                                            key=shared.getnotenum)):
+                for note in reversed(sorted(self.all_notes[sample], key=shared.getnotenum)):
                     tracks = self.all_note_tracks[sample][note]
                     line = sep.join(tracks[eventindex:eventindex + interval])
-                    test_empty_line = all([x == shared.empty_note for x in
-                                           tracks[eventindex:eventindex + interval]])
+                    test_empty_line = all(x == shared.empty_note for x in
+                                          tracks[eventindex:eventindex + interval])
                     if clear_empty and (test_empty_line or not line):
                         pass
                     else:
@@ -522,24 +515,23 @@ class ModFile:
                     print('  ', shared.empty_note, file=stream)
                 print('', file=stream)
 
-            sep = ''
+            sep = shared.eventsep(True, self.short_format)
             ## if eventindex + interval > total_length:
                 ## empty = (total_length - eventindex) * shared.empty_drums
             print('drums:', file=stream)
             not_printed = True
-            for _, instlett in sorted(druminst,
-                                      key=lambda x: drumseq.index(x[1])):
+            for _, instlett in sorted(druminst, key=lambda x: drumseq.index(x[1])):
                 tracks = self.all_drum_tracks[instlett]
                 line = sep.join(tracks[eventindex:eventindex + interval])
-                test_empty_line = all([x == shared.empty_drums for x in
-                                       tracks[eventindex:eventindex + interval]])
+                test_empty_line = all(x == empty_drum_event for x in
+                                      tracks[eventindex:eventindex + interval])
                 if clear_empty and (test_empty_line or not line):
                     pass
                 else:
                     print('  ', line, file=stream)
                     not_printed = False
             if not_printed:
-                print('  ', shared.empty_drums, file=stream)
+                print('  ', empty_drum_event, file=stream)
             print('', file=stream)
 
             print('', file=stream)

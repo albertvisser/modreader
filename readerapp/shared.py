@@ -20,8 +20,10 @@ optionsfile = pathlib.Path(__file__).parents[1] / 'options.ini'
 options.read(str(optionsfile))
 standard_printseq = options['general']['printseq']
 gm_drums = [(y, x) for x, y in options['gm_drums'].items()]
-samp2other = {x: y for x, y in options['samp2lett'].items()}
-known_files = options['general']['known_files'].split()
+samp2other = dict(options['samp2lett'])
+known_files = []
+for item in options['general']['known_files'].split():
+    known_files.extend([item, item.upper()])
 basedir = pathlib.Path(options['general']['basedir']).expanduser()
 location = pathlib.Path(options['general']['location']).expanduser()
 notenames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -37,8 +39,16 @@ patt_start = 'pattern {:>2}:'
 line_start = '            '
 empty_note = '...'
 empty_drums = '.'
+sep_long = '   '
 sep = {True: '', False: ' '}
 empty = {True: empty_drums, False: empty_note}
+
+
+def eventsep(is_drumtrack, short_format):
+    "return the correct event separator for a give track type"
+    if is_drumtrack and not short_format:
+        return sep_long
+    return sep[is_drumtrack]
 
 
 def get_note_name(inp):

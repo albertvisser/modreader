@@ -24,7 +24,7 @@ class RppFile:
             '<SOURCE': self.start_source,
             'HASDATA': self.start_data,
             'E': self.process_event,
-            '>': self.end_stuff}
+            '>': self.finalize}
 
         self.weirdness = []
         # mapping van naam op trackid(s)
@@ -71,8 +71,7 @@ class RppFile:
         self.in_source = True
 
     def start_data(self, data):
-        """
-        start of data block in case of midi, e.g.
+        """start of data block in case of midi, e.g.
         HASDATA 1 384 QN (zie onder)
         """
         if self.ignore:
@@ -85,8 +84,7 @@ class RppFile:
         self.pattern_events = collections.defaultdict(list)
 
     def process_event(self, data):
-        """
-        note on/off and other midi events, e.g.
+        """note on/off and other midi events, e.g.
         E 0 c0 14 00
         """
         if self.ignore:
@@ -126,9 +124,8 @@ class RppFile:
         self.pattern_events[pitch].append(now)
         self.pattern_length = now
 
-    def end_stuff(self, data):
-        """
-        end of block starting with <, same on any level:
+    def finalize(self, data):
+        """end of block starting with <, same on any level:
          >
         """
         if self.in_source:
@@ -180,14 +177,13 @@ class RppFile:
                 log(f"{oldpattnum} {oldpattnum2} {abspattstart}")
                 if oldpattnum2 > oldpattnum or not oldpattdata:
                     continue    # no data for pattern (just event c0 after event c0)
-                elif oldpattnum2 != oldpattnum:     # should never happen
+                if oldpattnum2 != oldpattnum:     # should never happen
                     with open('/tmp/rpp_patterns', 'w') as _o:
                         pprint.pprint(self.patterns, stream=_o)
                     with open('/tmp/rpp_pattern_list', 'w') as _o:
                         pprint.pprint(self.pattern_list, stream=_o)
-                    raise ValueError('mismatch on track {} pattern {} met pattern {}, '
-                                     'data dumped to /tmp'.format(track, oldpattnum,
-                                                                  oldpattnum2))
+                    raise ValueError(f'mismatch on track {track} pattern {oldpattnum} met'
+                                     f' pattern {oldpattnum2}, data dumped to /tmp')
                 newpattdata = collections.defaultdict(dict)
                 for pitch, events in oldpattdata.items():
                     ## newpattnum = 0
@@ -261,8 +257,7 @@ class RppFile:
         """create the "overview" file (sample and pattern lists)
         """
         data = shared.build_header("project", self.filename)
-        data.extend(shared.build_inst_list([(x, y) for x, y in sorted(
-            self.instruments.items())]))
+        data.extend(shared.build_inst_list(list(sorted(self.instruments.items()))))
         if not full:
             data.extend(shared.build_patt_header())
             for item, value in self.pattern_list.items():
@@ -290,8 +285,8 @@ class RppFile:
                 if is_drumtrack:
                     notestr = shared.get_inst_name(key + shared.note2drums)
                     if notestr == '?':
-                        unlettered.add('no letter yet for `{}`'.format(
-                            shared.gm_drums[key + shared.note2drums][1]))
+                        name = shared.gm_drums[key + shared.note2drums][1]
+                        unlettered.add(f'no letter yet for `{name}`')
                     else:
                         key = shared.standard_printseq.index(notestr)
                 else:
@@ -350,6 +345,7 @@ class RppFile:
 
         for trackno in self.instruments:
             is_drumtrack = self.old_patterns[trackno][0][1]['drumtrack']
+            empty_event = shared.empty[is_drumtrack]
             pattdict = {}
 
             # determine all notes used on this track and "buffer" the pattern data
@@ -361,36 +357,34 @@ class RppFile:
             for note in self.all_notes[trackno]:
                 if is_drumtrack:
                     notestr = shared.get_inst_name(note + shared.note2drums)
-                    self.all_note_tracks[trackno][notestr] = self.total_length * [
-                        shared.empty[is_drumtrack]]
+                    self.all_note_tracks[trackno][notestr] = self.total_length * [empty_event]
                 else:
-                    self.all_note_tracks[trackno][note] = self.total_length * [
-                        shared.empty[is_drumtrack]]
+                    self.all_note_tracks[trackno][note] = self.total_length * [empty_event]
 
             # fill in the separate events
             for item in self.old_pattern_list[trackno]:
-                if len(item) == len(['pattnum', 'pattstart']):  #  2:  # < 3
+                if len(item) == len(['pattnum', 'pattstart']):
                     continue    # no events found, so no length recorded
                 pattnum, pattstart = item[:2]
                 for note in self.all_notes[trackno]:
                     if is_drumtrack:
                         notestr = shared.get_inst_name(note + shared.note2drums)
                         if notestr == '?':
-                            self.unlettered.add('no letter yet for `{}`'.format(
-                                shared.gm_drums[note + shared.note2drums][1]))
+                            name = shared.gm_drums[note + shared.note2drums][1]
+                            self.unlettered.add(f'no letter yet for `{name}`')
                     else:
                         notestr = shared.get_note_name(note)
                     if note not in pattdict[pattnum]:
                         continue
                     for event in pattdict[pattnum][note]:
-                        ## log('track {} patt {} start {} note {} event {}'.format(
-                            ## trackno, pattnum, pattstart, note, event))
+                        # log('track {} patt {} start {} note {} event {}'.format(
+                        #     trackno, pattnum, pattstart, note, event))
                         ix = notestr if is_drumtrack else note
                         event += pattstart
-                        ## log('{} {} {}'.format(
-                            ## ix, len(self.all_note_tracks[trackno][ix]), event))
-                        ## if evt == len(self.all_note_tracks[trackno][ix]):
-                            ## for ix2 in self.all_note_tracks[trackno]
+                        # log('{} {} {}'.format(
+                        #     ix, len(self.all_note_tracks[trackno][ix]), event))
+                        # if evt == len(self.all_note_tracks[trackno][ix]):
+                        #     for ix2 in self.all_note_tracks[trackno]
                         self.all_note_tracks[trackno][ix][event] = notestr
 
     def print_instrument_full(self, trackno, opts, stream=sys.stdout):
@@ -401,26 +395,28 @@ class RppFile:
         """
         interval, clear_empty = opts
         is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
-        if is_drumtrack:
+        empty_event = shared.empty[is_drumtrack]
+        if is_drumtrack and self.short_format:
             interval *= 2
 
         full_length = self.total_length
-        empty = shared.sep[is_drumtrack].join(interval * [shared.empty[is_drumtrack]])
+        empty = shared.sep[is_drumtrack].join(interval * [empty_event])
 
         if is_drumtrack:
-            all_notes = [x for x in shared.standard_printseq
-                         if x in self.all_note_tracks[trackno]]
+            all_notes = [x for x in shared.standard_printseq if x in self.all_note_tracks[trackno]]
         else:
-            all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
+            all_notes = list(reversed(sorted(self.all_notes[trackno])))
+        delim = shared.eventsep(is_drumtrack, self.short_format)
         for eventindex in range(0, full_length, interval):
             if eventindex + interval > full_length:
-                empty = shared.sep[is_drumtrack].join(
-                    (full_length - eventindex) * [shared.empty[is_drumtrack]])
+                empty = delim.join((full_length - eventindex) * [empty_event])
             not_printed = True
             for note in all_notes:
                 note_data = self.all_note_tracks[trackno][note]
-                line = shared.sep[is_drumtrack].join(
-                    note_data[eventindex:eventindex + interval])
+                if is_drumtrack:
+                    line = delim.join(list(note_data[eventindex:eventindex + interval]))
+                else:
+                    line = delim.join(note_data[eventindex:eventindex + interval])
                 if clear_empty and (line == empty or not line):
                     pass
                 else:
@@ -443,20 +439,20 @@ class RppFile:
             for instname in instlist:
                 trackno = inst2sam[instname]
                 is_drumtrack = self.patterns[trackno][0][1]['drumtrack']
+                empty_event = shared.empty[is_drumtrack]
                 if is_drumtrack:
                     print('drums:', file=stream)
                 else:
                     print(f'{instname}:', file=stream)
-                delim = shared.sep[is_drumtrack]
-                empty = delim.join(interval * [shared.empty[is_drumtrack]])
+                delim = shared.eventsep(is_drumtrack, self.short_format)
+                empty = delim.join(interval * [empty_event])
                 if eventindex + interval > full_length:
-                    empty = delim.join(
-                        (full_length - eventindex) * [shared.empty[is_drumtrack]])
+                    empty = delim.join((full_length - eventindex) * [empty_event])
                 if is_drumtrack:
                     all_notes = [x for x in shared.standard_printseq
                                  if x in self.all_note_tracks[trackno]]
                 else:
-                    all_notes = [x for x in reversed(sorted(self.all_notes[trackno]))]
+                    all_notes = list(reversed(sorted(self.all_notes[trackno])))
                 not_printed = True
                 for note in all_notes:
                     line = delim.join(self.all_note_tracks[trackno][note]
@@ -468,6 +464,6 @@ class RppFile:
                         print('  ', line, file=stream)
                         not_printed = False
                 if not_printed:
-                    print('  ', shared.empty[is_drumtrack], file=stream)
+                    print('  ', empty_event, file=stream)
                 print('', file=stream)
             print('', file=stream)

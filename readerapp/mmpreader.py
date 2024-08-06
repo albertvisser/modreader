@@ -54,7 +54,8 @@ class MMPFile:
 
         # getting the regular instruments
         tracks = root.findall('./song/trackcontainer/track[@type="0"]')
-        self.tracknames = set([x.get("name") for x in tracks])
+        # self.tracknames = set([x.get("name") for x in tracks])
+        self.tracknames = {x.get("name") for x in tracks}
 
         patternlists = collections.defaultdict(list)
         patterndata = collections.defaultdict(list)
@@ -90,8 +91,8 @@ class MMPFile:
         maxpattnum = 0
         for data in trackdata_split.values():
             newmax = max(x[0] for x in data)
-            if newmax > maxpattnum:
-                maxpattnum = newmax
+            maxpattnum = max(newmax, maxpattnum)
+
         maxpattnum += 1
 
         patternlists = collections.defaultdict(lambda: maxpattnum * [-1])
@@ -147,7 +148,7 @@ class MMPFile:
             for bbtco in track.findall('bbtco'):
                 pos = int(bbtco.get('pos'))
                 bbeventslist.append((pos, tracknum + 1))
-        self.bbpatternlist = [(x, y) for x, y in sorted(bbeventslist)]
+        self.bbpatternlist = list(sorted(bbeventslist))
 
     def read_track(self, track):
         """helper method to break up a track into note events
@@ -336,8 +337,8 @@ class MMPFile:
                     ## idx = int((start + timing) / shared.timing_unit)
                     idx = (start + timing) // shared.timing_unit
                     if is_drumtrack:
-                        notename = shared.get_inst_name(note + shared.octave_length +
-                                                        shared.note2drums)
+                        notename = shared.get_inst_name(note + shared.octave_length
+                                                        + shared.note2drums)
                     else:
                         notename = shared.get_note_name(note + shared.octave_length)
                     self.notes_data_dict[trackname][note][idx] = notename
@@ -353,10 +354,9 @@ class MMPFile:
         is_drumtrack = trackname in self.druminst
         if is_drumtrack:
             interval *= 2
-            notes_to_show = [x for x in sorted(self.all_notes[trackname],
-                                               key=get_druminst_order)]
+            notes_to_show = list(sorted(self.all_notes[trackname], key=get_druminst_order))
         else:
-            notes_to_show = [x for x in reversed(sorted(self.all_notes[trackname]))]
+            notes_to_show = list(reversed(sorted(self.all_notes[trackname])))
         sep = shared.sep[is_drumtrack]
         empty_line = sep.join(interval * [shared.empty[is_drumtrack]])
         for eventindex in range(0, self.total_length, interval):
@@ -407,8 +407,11 @@ class MMPFile:
         opts indicates how many events per line and whether to print "empty" lines
         """
         interval, clear_empty = opts
-        interval *= 2
         sep = ''
+        if self.short_format:
+            interval *= 2
+        else:
+            sep = shared.sep_long
 
         empty_line = sep.join(interval * [shared.empty_drums])
         for eventindex in range(0, self.total_length, interval):
@@ -452,12 +455,10 @@ class MMPFile:
                 print(f'{trackname}:', file=_out)
                 is_drumtrack = trackname in self.druminst
                 if is_drumtrack:
-                    notes_to_show = [x for x in sorted(self.all_notes[trackname],
-                                                       key=get_druminst_order)]
+                    notes_to_show = list(sorted(self.all_notes[trackname], key=get_druminst_order))
                 else:
-                    notes_to_show = [x for x in reversed(sorted(
-                        self.all_notes[trackname]))]
-                sep = shared.sep[is_drumtrack]
+                    notes_to_show = list(reversed(sorted(self.all_notes[trackname])))
+                sep = shared.eventsep(is_drumtrack, self.short_format)
                 empty = shared.empty[is_drumtrack]
                 empty_line = sep.join(interval * [empty])
                 if eventindex + interval > self.total_length:
@@ -477,7 +478,8 @@ class MMPFile:
 
             if 'bb' in self.notes_data_dict:
                 print('beat-bassline', file=_out)
-                sep = ''
+                # sep = ''
+                sep = shared.eventsep(True, self.short_format)
                 empty_line = sep.join(interval * [shared.empty_drums])
                 if eventindex + interval > self.total_length:
                     empty_line = sep.join(
