@@ -15,9 +15,9 @@ import os
 import pathlib
 import datetime
 import logging
-import PyQt5.QtWidgets as qtw
-import PyQt5.QtGui as gui
-import PyQt5.QtCore as core
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtGui as gui
+import PyQt6.QtCore as core
 from readerapp import shared, modreader, midreader, medreader, mmpreader, rppreader, xmreader
 
 mru_filename = pathlib.Path(__file__).parent / 'mru_files'
@@ -32,7 +32,7 @@ def waiting_cursor(func):
     "change the cursor before and after an operation"
     def wrap_operation(self):
         "the wrapped operation is a method without arguments"
-        self.app.setOverrideCursor(gui.QCursor(core.Qt.WaitCursor))
+        self.app.setOverrideCursor(gui.QCursor(core.Qt.CursorShape.WaitCursor))
         func(self)
         self.app.restoreOverrideCursor()
     return wrap_operation
@@ -64,8 +64,8 @@ class GetDestDialog(qtw.QDialog):
         sizer.addLayout(hsizer)
 
         buttonbox = qtw.QDialogButtonBox()
-        buttonbox.addButton(qtw.QDialogButtonBox.Ok)
-        buttonbox.addButton(qtw.QDialogButtonBox.Cancel)
+        buttonbox.addButton(qtw.QDialogButtonBox.StandardButton.Ok)
+        buttonbox.addButton(qtw.QDialogButtonBox.StandardButton.Cancel)
         buttonbox.accepted.connect(self.accept)
         buttonbox.rejected.connect(self.reject)
         hsizer = qtw.QHBoxLayout()
@@ -108,7 +108,7 @@ class MainFrame(qtw.QWidget):
             self._mru_items = []
 
         # this should enable tabbing, but apparently it doesn't?
-        self.setFocusPolicy(core.Qt.StrongFocus)
+        self.setFocusPolicy(core.Qt.FocusPolicy.StrongFocus)
         self.create_widgets()
         self.create_actions()
         self.newdir = str(shared.basedir)
@@ -162,7 +162,7 @@ class MainFrame(qtw.QWidget):
         hbox.addLayout(col)
 
         self.list_samples = qtw.QListWidget(self)
-        self.list_samples.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
+        self.list_samples.setSelectionMode(qtw.QAbstractItemView.SelectionMode.ExtendedSelection)
         hbox.addWidget(self.list_samples)
 
         col = qtw.QVBoxLayout()
@@ -177,7 +177,7 @@ class MainFrame(qtw.QWidget):
         hbox.addLayout(col)
 
         self.mark_samples = qtw.QListWidget(self)
-        self.mark_samples.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
+        self.mark_samples.setSelectionMode(qtw.QAbstractItemView.SelectionMode.ExtendedSelection)
         hbox.addWidget(self.mark_samples)
 
         col = qtw.QVBoxLayout()
@@ -282,7 +282,7 @@ class MainFrame(qtw.QWidget):
             ('Show this screen', 'F1', self.help))
 
         for name, shortcut, callback in self.actionlist:
-            act = qtw.QAction(name, self)
+            act = gui.QAction(name, self)
             act.setShortcut(shortcut)
             act.triggered.connect(callback)
             self.addAction(act)
@@ -443,7 +443,7 @@ class MainFrame(qtw.QWidget):
             self.mark_samples.addItem(item)
             self.mark_samples.setCurrentItem(item)
             item.setSelected(True)
-        self.mark_samples.setFocus(True)
+        self.mark_samples.setFocus()  # True)
 
     def move_to_left(self):
         """overbrengen naar linkerlijst (om alleen drumsamples over te houden)
@@ -465,13 +465,12 @@ class MainFrame(qtw.QWidget):
             self.list_samples.addItem(item)
             self.list_samples.setCurrentItem(item)
             item.setSelected(True)
-        self.list_samples.setFocus(True)
+        self.list_samples.setFocus()  # True)
 
     def move_up(self):
         """entry verplaatsen voor realiseren juiste volgorde
         """
-        selected = self.check_selected(self.mark_samples, only_one=True,
-                                       for_now=True)
+        selected = self.check_selected(self.mark_samples, only_one=True, for_now=True)
         if not selected:
             return
         selindx = self.mark_samples.row(selected[0])
@@ -484,8 +483,7 @@ class MainFrame(qtw.QWidget):
     def move_down(self):
         """entry verplaatsen voor realiseren juiste volgorde
         """
-        selected = self.check_selected(self.mark_samples, only_one=True,
-                                       for_now=True)
+        selected = self.check_selected(self.mark_samples, only_one=True, for_now=True)
         if not selected:
             return
         selindx = self.mark_samples.row(selected[0])
@@ -498,8 +496,7 @@ class MainFrame(qtw.QWidget):
     def move_inst_up(self):
         """entry verplaatsen voor realiseren juiste volgorde
         """
-        selected = self.check_selected(self.list_samples, only_one=True,
-                                       for_now=True)
+        selected = self.check_selected(self.list_samples, only_one=True, for_now=True)
         if not selected:
             return
         selindx = self.list_samples.row(selected[0])
@@ -510,10 +507,9 @@ class MainFrame(qtw.QWidget):
             self.list_samples.scrollToItem(item)
 
     def move_inst_down(self):
-        """entry verplaatsen voor realiseren juiste volgorde
+        """entry verplaatsen voor realiseren juiste volgordSelectionModee
         """
-        selected = self.check_selected(self.list_samples, only_one=True,
-                                       for_now=True)
+        selected = self.check_selected(self.list_samples, only_one=True, for_now=True)
         if not selected:
             return
         selindx = self.list_samples.row(selected[0])
@@ -548,9 +544,7 @@ class MainFrame(qtw.QWidget):
         for item in selected:
             ## selindex = self.mark_samples.row(item)
             if not item.text().startswith('dummy_sample ('):
-                qtw.QMessageBox.information(
-                    self, self.title,
-                    'You can only remove dummy samples')
+                qtw.QMessageBox.information( self, self.title, 'You can only remove dummy samples')
                 return
         for item in selected:
             selindx = self.mark_samples.row(item)
@@ -559,7 +553,7 @@ class MainFrame(qtw.QWidget):
     def change_dest(self):
         """callback for button to change standard output location
         """
-        if GetDestDialog(self, text=self.newdir).exec_() == qtw.QDialog.Accepted:
+        if GetDestDialog(self, text=self.newdir).exec() == qtw.QDialog.DialogCode.Accepted:
             self.dest.setText(self.newdir)
 
     def push(self):
@@ -582,8 +576,7 @@ class MainFrame(qtw.QWidget):
     def help(self):
         """show some help info
         """
-        qtw.QMessageBox.information(self, 'Keyboard Shortcuts',
-                                    '\n'.join(self.helpitems))
+        qtw.QMessageBox.information(self, 'Keyboard Shortcuts', '\n'.join(self.helpitems))
 
     def exit(self):
         """close the application
@@ -598,8 +591,7 @@ class MainFrame(qtw.QWidget):
         samples, letters, printseq = [], [], ''
 
         # get all letters assigned to sample
-        all_item_texts = [self.mark_samples.item(x).text() for x in range(len(
-            self.mark_samples))]
+        all_item_texts = [self.mark_samples.item(x).text() for x in range(len(self.mark_samples))]
         try:
             for x, y in [z.rsplit(None, 1) for z in all_item_texts]:
                 samples.append(x)
@@ -630,8 +622,8 @@ class MainFrame(qtw.QWidget):
                     self.remove_button.setEnabled(True)
                     ready = False
             if not ready:
-                msg = ('Please relocate the dummy sample(s) so their letters are in the right'
-                       ' position')
+                msg = ('Please relocate the dummy sample(s)'
+                       ' so their letters are in the right position')
 
         self._assigned = samples, letters, printseq
         return msg
@@ -962,4 +954,4 @@ def main():
     "main function"
     app = qtw.QApplication(sys.argv)
     MainFrame(app)
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
