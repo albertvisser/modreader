@@ -24,6 +24,8 @@ class MidiFile:
         self.instruments = {}
         self.patterns = {}
         self.pattern_lists = collections.defaultdict(list)
+        self.short_format = None
+        self.show_continual = None
         self.read()
 
     def read(self):
@@ -82,6 +84,37 @@ class MidiFile:
                 to_pop.append(key)
         for key in to_pop:
             self.instruments.pop(key)
+
+    def process(self, gui):
+        """Create output for MIDI
+
+        this is assuming I only have midi files that use a separate drum track
+        (instead of several tracks with one drum instrument each)
+        """
+        options = (gui.max_events.value(), gui.check_nonempty.isChecked())
+        with open(gui.get_general_filename(), "w") as _out:
+            self.print_general_data(full=self.show_continual, stream=_out)
+        self.prepare_print_instruments()
+        # kijken of er dubbele namen zijn
+        test, dubbel = set(), set()
+        for trackno, data in self.instruments.items():
+            if data[0] in test:
+                dubbel.add('-'.join((data[0], str(trackno))))
+            else:
+                test.add(data[0])
+        if gui.check_allinone.isChecked():
+            inst_list = gui.list_items(gui.list_samples)
+            inst_list += [x.rsplit(' ', 1)[0] for x in gui.list_items(gui.mark_samples)]
+            with open(gui.get_general_filename(), 'a') as _out:
+                self.print_all_instruments_full(inst_list, options, _out)
+            return []
+        for trackno, name in self.instruments.items():
+            with open(gui.get_instrument_filename(name), 'w') as _out:
+                if gui.check_full.isChecked():
+                    self.print_instrument_full(trackno, options, _out)
+                else:
+                    self.print_instrument(trackno, _out)
+        return []
 
     def print_general_data(self, full=False, stream=sys.stdout):
         """create the "overview" file (sample and pattern lists)

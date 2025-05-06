@@ -32,6 +32,8 @@ class MMPFile:
     """
     def __init__(self, filename):
         self.filename = filename
+        self.short_format = None
+        self.show_continual = None
         self.read()
 
     def read(self):
@@ -149,6 +151,78 @@ class MMPFile:
                 pos = int(bbtco.get('pos'))
                 bbeventslist.append((pos, tracknum + 1))
         self.bbpatternlist = list(sorted(bbeventslist))
+
+    def process(self, gui):
+        """Create output for LMMS project
+        """
+        drumsamples, letters, printseq = gui.assigned
+        inst_samples = [gui.list_samples.item(x).text() for x in range(gui.list_samples.count())]
+        sample_map = list(zip(drumsamples, letters))
+        drumkits = [x for x, y in sample_map if y == '*']
+
+        with open(gui.get_general_filename(), "w") as _out:
+            #  log('calling self.print_general_data with args {} {} {}'.format(
+            #      inst_samples, self.check_full.isChecked(), _out))
+            #  self.print_general_data(inst_samples, self.check_full.isChecked(),
+            #      _out)
+            log(f'calling print_general_data with args {drumkits} {gui.check_full.isChecked()}'
+                ' {_out}')
+            gui.print_general_data(drumkits, self.show_continual, _out)
+
+        #  log('calling self.prepare_print_instruments with argument {}'.format(
+        #      [x for x, y in sample_map if y == '*']))
+        log(f'calling prepare_print_instruments with argument {drumkits}')
+        self.prepare_print_instruments(drumkits)
+        # m.z. self.prepare_print_instruments(inst_samples) ?
+        if self.bbtracknames:
+            log(f'calling prepare_print_beat_bassline with args {sample_map} {printseq}')
+            self.prepare_print_beat_bassline(sample_map, printseq)
+        options = (gui.max_events.value(), gui.check_nonempty.isChecked())
+        if gui.check_allinone.isChecked():
+            # instlist = [x.rsplit(' ', 1) for x in list_items(self.list_samples)]
+            with open(gui.get_general_filename(), 'a') as _out:
+                log(f'calling print_all_instruments_full with args {inst_samples} {printseq}'
+                    ' {options} {_out}')
+                self.print_all_instruments_full(inst_samples, printseq, options, _out)
+            return []
+
+        if [x for x, y in sample_map if y != '*']:
+            if self.bbtracknames:
+                with open(gui.get_instrument_filename('bbdrums'), "w") as _out:
+                    if gui.check_full.isChecked():
+                        log(f'calling print_beat_bassline_full with args {printseq} {options} {_out}')
+                        self.print_beat_bassline_full(printseq, options, _out=_out)
+                    else:
+                        log(f'calling print_beat_bassline with args {sample_map} {printseq} {_out}')
+                        self.print_beat_bassline(sample_map, printseq, _out=_out)
+            else:
+                with open(gui.get_drums_filename(), "w") as _out:
+                    log(f'calling print_drums with args {sample_map} {printseq} {_out}')
+                    self.print_drums(sample_map, printseq, _out)
+
+        all_unlettered = []
+        for trackname in [x for x, y in sample_map if y == '*']:
+            with open(gui.get_instrument_filename(trackname), "w") as _out:
+                if gui.check_full.isChecked():
+                    log(f'calling print_instrument_full with args {trackname} {options} {_out}')
+                    self.print_instrument_full(trackname, options, _out=_out)
+                    unlettered = []
+                else:
+                    log(f'calling print_drumtrack with args {trackname} {_out}')
+                    unlettered = self.print_drumtrack(trackname, _out=_out)
+            for line in unlettered:
+                all_unlettered.append(f'track {trackname}: {line}')
+
+        for trackname in inst_samples:
+            with open(gui.get_instrument_filename(trackname), "w") as _out:
+                if gui.check_full.isChecked():
+                    log(f'calling print_instrument_full with args {trackname} {options} {_out}')
+                    self.print_instrument_full(trackname, options, _out=_out)
+                else:
+                    log(f'calling print_instrument with args {trackname} {_out}')
+                    self.print_instrument(trackname, _out)
+
+        return all_unlettered
 
     def read_track(self, track):
         """helper method to break up a track into note events

@@ -38,12 +38,6 @@ def waiting_cursor(func):
     return wrap_operation
 
 
-def list_items(listbox):
-    """retrieve list of items listed in listbox
-    """
-    return [listbox.item(i).text() for i in range(len(listbox))]
-
-
 class GetDestDialog(qtw.QDialog):
     """dialog om een output filename te bepalen via tekst input of file selectie
     """
@@ -544,7 +538,7 @@ class MainFrame(qtw.QWidget):
         for item in selected:
             ## selindex = self.mark_samples.row(item)
             if not item.text().startswith('dummy_sample ('):
-                qtw.QMessageBox.information( self, self.title, 'You can only remove dummy samples')
+                qtw.QMessageBox.information(self, self.title, 'You can only remove dummy samples')
                 return
         for item in selected:
             selindx = self.mark_samples.row(item)
@@ -625,7 +619,7 @@ class MainFrame(qtw.QWidget):
                 msg = ('Please relocate the dummy sample(s)'
                        ' so their letters are in the right position')
 
-        self._assigned = samples, letters, printseq
+        self.assigned = samples, letters, printseq
         return msg
 
     def get_general_filename(self):
@@ -643,285 +637,291 @@ class MainFrame(qtw.QWidget):
         """
         return str(pathlib.Path(self.newdir) / f'{self.dts}-{self.ftype}-{name}')
 
-    def process_modfile(self):
-        """Create output for NoiseTracker/SoundTracker/MadTracker module
+    @staticmethod
+    def list_items(listbox):
+        """retrieve list of items listed in listbox
         """
-        drums = []
-        nondrums = []
-        samples, letters, printseq = self._assigned
+        return [listbox.item(i).text() for i in range(len(listbox))]
 
-        for num, data in self.loaded.samples.items():
-            if data[0] in samples:
-                ix = samples.index(data[0])
-                drums.append((num + 1, letters[ix]))
+    # def process_modfile(self):
+    #     """Create output for NoiseTracker/SoundTracker/MadTracker module
+    #     """
+    #     drums = []
+    #     nondrums = []
+    #     samples, letters, printseq = self._assigned
 
-        for name in list_items(self.list_samples):
-            ix = {y[0]: x for x, y in self.loaded.samples.items()}[name]
-            nondrums.append((ix + 1, name))
+    #     for num, data in self.loaded.samples.items():
+    #         if data[0] in samples:
+    #             ix = samples.index(data[0])
+    #             drums.append((num + 1, letters[ix]))
 
-        with open(self.get_general_filename(), "w") as out:
-            if drums:
-                self.loaded.print_general_data(drums, self.check_full.isChecked(), out)
-            else:
-                self.loaded.print_general_data(full=self.check_full.isChecked(), _out=out)
-        self.loaded.prepare_print_instruments(nondrums)
-        self.loaded.prepare_print_drums(printseq)
-        options = (self.max_events.value(), self.check_nonempty.isChecked())
-        if self.check_allinone.isChecked():
-            druminst = [(x, y) for x, y in drums if len(y) == 1]
-            log(f'calling print_all_instruments_full with args {nondrums} {druminst} {printseq} '
-                '{options} {self.get_general_filename()}')
-            with open(self.get_general_filename(), 'a') as _out:
-                self.loaded.print_all_instruments_full(nondrums, druminst, printseq, options, _out)
-            return
-        if drums:
-            with open(self.get_drums_filename(), "w") as out:
-                if self.check_full.isChecked():
-                    self.loaded.print_drums_full(printseq, options, out)
-                else:
-                    self.loaded.print_drums(printseq, out)
-        for number, name in nondrums:
-            with open(self.get_instrument_filename(name), "w") as out:
-                if self.check_full.isChecked():
-                    self.loaded.print_instrument_full(number, options, out)
-                else:
-                    self.loaded.print_instrument(number, out)
+    #     for name in list_items(self.list_samples):
+    #         ix = {y[0]: x for x, y in self.loaded.samples.items()}[name]
+    #         nondrums.append((ix + 1, name))
 
-    def process_midifile(self):
-        """Create output for MIDI
+    #     with open(self.get_general_filename(), "w") as out:
+    #         if drums:
+    #             self.loaded.print_general_data(drums, self.check_full.isChecked(), out)
+    #         else:
+    #             self.loaded.print_general_data(full=self.check_full.isChecked(), _out=out)
+    #     self.loaded.prepare_print_instruments(nondrums)
+    #     self.loaded.prepare_print_drums(printseq)
+    #     options = (self.max_events.value(), self.check_nonempty.isChecked())
+    #     if self.check_allinone.isChecked():
+    #         druminst = [(x, y) for x, y in drums if len(y) == 1]
+    #         log(f'calling print_all_instruments_full with args {nondrums} {druminst} {printseq} '
+    #             '{options} {self.get_general_filename()}')
+    #         with open(self.get_general_filename(), 'a') as _out:
+    #             self.loaded.print_all_instruments_full(nondrums, druminst, printseq, options, _out)
+    #         return
+    #     if drums:
+    #         with open(self.get_drums_filename(), "w") as out:
+    #             if self.check_full.isChecked():
+    #                 self.loaded.print_drums_full(printseq, options, out)
+    #             else:
+    #                 self.loaded.print_drums(printseq, out)
+    #     for number, name in nondrums:
+    #         with open(self.get_instrument_filename(name), "w") as out:
+    #             if self.check_full.isChecked():
+    #                 self.loaded.print_instrument_full(number, options, out)
+    #             else:
+    #                 self.loaded.print_instrument(number, out)
 
-        this is assuming I only have midi files that use a separate drum track
-        (instead of several tracks with one drum instrument each)
-        """
-        options = (self.max_events.value(), self.check_nonempty.isChecked())
-        with open(self.get_general_filename(), "w") as _out:
-            self.loaded.print_general_data(full=self.check_full.isChecked(), stream=_out)
-        self.loaded.prepare_print_instruments()
-        # kijken of er dubbele namen zijn
-        test, dubbel = set(), set()
-        for trackno, data in self.loaded.instruments.items():
-            if data[0] in test:
-                dubbel.add('-'.join((data[0], str(trackno))))
-            else:
-                test.add(data[0])
-        if self.check_allinone.isChecked():
-            inst_list = list_items(self.list_samples)
-            inst_list += [x.rsplit(' ', 1)[0] for x in list_items(self.mark_samples)]
-            with open(self.get_general_filename(), 'a') as _out:
-                self.loaded.print_all_instruments_full(inst_list, options, _out)
-            return
-        for trackno, name in self.loaded.instruments.items():
-            with open(self.get_instrument_filename(name), 'w') as _out:
-                if self.check_full.isChecked():
-                    unlettered = self.loaded.print_instrument_full(trackno, options, _out)
-                else:
-                    unlettered = self.loaded.print_instrument(trackno, _out)
-            if unlettered:
-                qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
+    # def process_midifile(self):
+    #     """Create output for MIDI
 
-    def process_medfile(self):
-        """Create output for (Octa)Med module
-        """
-        drums = []
-        nondrums = []
-        samples, letters, printseq = self._assigned
-        options = (self.max_events.value(), self.check_nonempty.isChecked())
+    #     this is assuming I only have midi files that use a separate drum track
+    #     (instead of several tracks with one drum instrument each)
+    #     """
+    #     options = (self.max_events.value(), self.check_nonempty.isChecked())
+    #     with open(self.get_general_filename(), "w") as _out:
+    #         self.loaded.print_general_data(full=self.check_full.isChecked(), stream=_out)
+    #     self.loaded.prepare_print_instruments()
+    #     # kijken of er dubbele namen zijn
+    #     test, dubbel = set(), set()
+    #     for trackno, data in self.loaded.instruments.items():
+    #         if data[0] in test:
+    #             dubbel.add('-'.join((data[0], str(trackno))))
+    #         else:
+    #             test.add(data[0])
+    #     if self.check_allinone.isChecked():
+    #         inst_list = list_items(self.list_samples)
+    #         inst_list += [x.rsplit(' ', 1)[0] for x in list_items(self.mark_samples)]
+    #         with open(self.get_general_filename(), 'a') as _out:
+    #             self.loaded.print_all_instruments_full(inst_list, options, _out)
+    #         return
+    #     for trackno, name in self.loaded.instruments.items():
+    #         with open(self.get_instrument_filename(name), 'w') as _out:
+    #             if self.check_full.isChecked():
+    #                 unlettered = self.loaded.print_instrument_full(trackno, options, _out)
+    #             else:
+    #                 unlettered = self.loaded.print_instrument(trackno, _out)
+    #         if unlettered:
+    #             qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
-        for num, name in enumerate(self.loaded.samplenames):
-            name = name[1]
-            if name in samples:
-                ix = samples.index(name)
-                drums.append((num + 1, letters[ix]))
+    # def process_medfile(self):
+    #     """Create output for (Octa)Med module
+    #     """
+    #     drums = []
+    #     nondrums = []
+    #     samples, letters, printseq = self._assigned
+    #     options = (self.max_events.value(), self.check_nonempty.isChecked())
 
-        for name in list_items(self.list_samples):
-            ix = [y for x, y in self.loaded.samplenames].index(name)
-            nondrums.append((ix + 1, name))
+    #     for num, name in enumerate(self.loaded.samplenames):
+    #         name = name[1]
+    #         if name in samples:
+    #             ix = samples.index(name)
+    #             drums.append((num + 1, letters[ix]))
 
-        with open(self.get_general_filename(), "w") as out:
-            if drums:
-                log(f'calling print_general_data with args {drums} {self.check_full.isChecked()}'
-                    ' {out}')
-                self.loaded.print_general_data(drums, self.check_full.isChecked(), out)
-            else:
-                log(f'calling print_general_data with args {self.check_full.isChecked()} {out}')
-                self.loaded.print_general_data(full=self.check_full.isChecked(), _out=out)
-        log(f'calling prepare_print_instruments with argument {nondrums}')
-        self.loaded.prepare_print_instruments(nondrums)
-        self.loaded.prepare_print_drums(printseq)
-        if self.check_allinone.isChecked():
-            with open(self.get_general_filename(), 'a') as _out:
-                self.loaded.print_all_instruments_full(nondrums, printseq,
-                                                       options, _out)
-            return
-        if drums:
-            with open(self.get_drums_filename(), "w") as out:
-                if self.check_full.isChecked():
-                    ## self.loaded.print_drums_full(drums, printseq, options, out)
-                    self.loaded.print_drums_full(printseq, options, out)
-                else:
-                    ## self.loaded.print_drums(drums, printseq, out)
-                    self.loaded.print_drums(printseq, out)
-        for number, name in nondrums:
-            with open(self.get_instrument_filename(name), "w") as out:
-                if self.check_full.isChecked():
-                    self.loaded.print_instrument_full(name, options, out)
-                else:
-                    log(f'calling print_instrument with args {number} {out}')
-                    self.loaded.print_instrument(number, out)
+    #     for name in list_items(self.list_samples):
+    #         ix = [y for x, y in self.loaded.samplenames].index(name)
+    #         nondrums.append((ix + 1, name))
 
-    def process_mmpfile(self):
-        """Create output for LMMS project
-        """
-        drumsamples, letters, printseq = self._assigned
-        inst_samples = [self.list_samples.item(x).text() for x in range(self.list_samples.count())]
-        sample_map = list(zip(drumsamples, letters))
-        drumkits = [x for x, y in sample_map if y == '*']
+    #     with open(self.get_general_filename(), "w") as out:
+    #         if drums:
+    #             log(f'calling print_general_data with args {drums} {self.check_full.isChecked()}'
+    #                 ' {out}')
+    #             self.loaded.print_general_data(drums, self.check_full.isChecked(), out)
+    #         else:
+    #             log(f'calling print_general_data with args {self.check_full.isChecked()} {out}')
+    #             self.loaded.print_general_data(full=self.check_full.isChecked(), _out=out)
+    #     log(f'calling prepare_print_instruments with argument {nondrums}')
+    #     self.loaded.prepare_print_instruments(nondrums)
+    #     self.loaded.prepare_print_drums(printseq)
+    #     if self.check_allinone.isChecked():
+    #         with open(self.get_general_filename(), 'a') as _out:
+    #             self.loaded.print_all_instruments_full(nondrums, printseq,
+    #                                                    options, _out)
+    #         return
+    #     if drums:
+    #         with open(self.get_drums_filename(), "w") as out:
+    #             if self.check_full.isChecked():
+    #                 ## self.loaded.print_drums_full(drums, printseq, options, out)
+    #                 self.loaded.print_drums_full(printseq, options, out)
+    #             else:
+    #                 ## self.loaded.print_drums(drums, printseq, out)
+    #                 self.loaded.print_drums(printseq, out)
+    #     for number, name in nondrums:
+    #         with open(self.get_instrument_filename(name), "w") as out:
+    #             if self.check_full.isChecked():
+    #                 self.loaded.print_instrument_full(name, options, out)
+    #             else:
+    #                 log(f'calling print_instrument with args {number} {out}')
+    #                 self.loaded.print_instrument(number, out)
 
-        with open(self.get_general_filename(), "w") as _out:
-            #  log('calling self.loaded.print_general_data with args {} {} {}'.format(
-            #      inst_samples, self.check_full.isChecked(), _out))
-            #  self.loaded.print_general_data(inst_samples, self.check_full.isChecked(),
-            #      _out)
-            log(f'calling print_general_data with args {drumkits} {self.check_full.isChecked()}'
-                ' {_out}')
-            self.loaded.print_general_data(drumkits, self.check_full.isChecked(), _out)
+    # def process_mmpfile(self):
+    #     """Create output for LMMS project
+    #     """
+    #     drumsamples, letters, printseq = self._assigned
+    #     inst_samples = [self.list_samples.item(x).text() for x in range(self.list_samples.count())]
+    #     sample_map = list(zip(drumsamples, letters))
+    #     drumkits = [x for x, y in sample_map if y == '*']
 
-        #  log('calling self.loaded.prepare_print_instruments with argument {}'.format(
-        #      [x for x, y in sample_map if y == '*']))
-        log(f'calling prepare_print_instruments with argument {drumkits}')
-        self.loaded.prepare_print_instruments(drumkits)
-        # m.z. self.loaded.prepare_print_instruments(inst_samples) ?
-        if self.loaded.bbtracknames:
-            log(f'calling prepare_print_beat_bassline with args {sample_map} {printseq}')
-            self.loaded.prepare_print_beat_bassline(sample_map, printseq)
-        options = (self.max_events.value(), self.check_nonempty.isChecked())
-        if self.check_allinone.isChecked():
-            # instlist = [x.rsplit(' ', 1) for x in list_items(self.list_samples)]
-            with open(self.get_general_filename(), 'a') as _out:
-                log(f'calling print_all_instruments_full with args {inst_samples} {printseq}'
-                    ' {options} {_out}')
-                self.loaded.print_all_instruments_full(inst_samples, printseq, options, _out)
-            return
+    #     with open(self.get_general_filename(), "w") as _out:
+    #         #  log('calling self.loaded.print_general_data with args {} {} {}'.format(
+    #         #      inst_samples, self.check_full.isChecked(), _out))
+    #         #  self.loaded.print_general_data(inst_samples, self.check_full.isChecked(),
+    #         #      _out)
+    #         log(f'calling print_general_data with args {drumkits} {self.check_full.isChecked()}'
+    #             ' {_out}')
+    #         self.loaded.print_general_data(drumkits, self.check_full.isChecked(), _out)
 
-        if [x for x, y in sample_map if y != '*']:
-            if self.loaded.bbtracknames:
-                with open(self.get_instrument_filename('bbdrums'), "w") as _out:
-                    if self.check_full.isChecked():
-                        log(f'calling print_beat_bassline_full with args {printseq} {options} {_out}')
-                        self.loaded.print_beat_bassline_full(printseq, options, _out=_out)
-                    else:
-                        log(f'calling print_beat_bassline with args {sample_map} {printseq} {_out}')
-                        self.loaded.print_beat_bassline(sample_map, printseq, _out=_out)
-            else:
-                with open(self.get_drums_filename(), "w") as _out:
-                    log(f'calling print_drums with args {sample_map} {printseq} {_out}')
-                    self.loaded.print_drums(sample_map, printseq, _out)
+    #     #  log('calling self.loaded.prepare_print_instruments with argument {}'.format(
+    #     #      [x for x, y in sample_map if y == '*']))
+    #     log(f'calling prepare_print_instruments with argument {drumkits}')
+    #     self.loaded.prepare_print_instruments(drumkits)
+    #     # m.z. self.loaded.prepare_print_instruments(inst_samples) ?
+    #     if self.loaded.bbtracknames:
+    #         log(f'calling prepare_print_beat_bassline with args {sample_map} {printseq}')
+    #         self.loaded.prepare_print_beat_bassline(sample_map, printseq)
+    #     options = (self.max_events.value(), self.check_nonempty.isChecked())
+    #     if self.check_allinone.isChecked():
+    #         # instlist = [x.rsplit(' ', 1) for x in list_items(self.list_samples)]
+    #         with open(self.get_general_filename(), 'a') as _out:
+    #             log(f'calling print_all_instruments_full with args {inst_samples} {printseq}'
+    #                 ' {options} {_out}')
+    #             self.loaded.print_all_instruments_full(inst_samples, printseq, options, _out)
+    #         return
 
-        for trackname in [x for x, y in sample_map if y == '*']:
-            with open(self.get_instrument_filename(trackname), "w") as _out:
-                if self.check_full.isChecked():
-                    log(f'calling print_instrument_full with args {trackname} {options} {_out}')
-                    unlettered = self.loaded.print_instrument_full(trackname, options, _out=_out)
-                else:
-                    log(f'calling print_drumtrack with args {trackname} {_out}')
-                    unlettered = self.loaded.print_drumtrack(trackname, _out=_out)
-            if unlettered:
-                qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
+    #     if [x for x, y in sample_map if y != '*']:
+    #         if self.loaded.bbtracknames:
+    #             with open(self.get_instrument_filename('bbdrums'), "w") as _out:
+    #                 if self.check_full.isChecked():
+    #                     log(f'calling print_beat_bassline_full with args {printseq} {options} {_out}')
+    #                     self.loaded.print_beat_bassline_full(printseq, options, _out=_out)
+    #                 else:
+    #                     log(f'calling print_beat_bassline with args {sample_map} {printseq} {_out}')
+    #                     self.loaded.print_beat_bassline(sample_map, printseq, _out=_out)
+    #         else:
+    #             with open(self.get_drums_filename(), "w") as _out:
+    #                 log(f'calling print_drums with args {sample_map} {printseq} {_out}')
+    #                 self.loaded.print_drums(sample_map, printseq, _out)
 
-        for trackname in inst_samples:
-            with open(self.get_instrument_filename(trackname), "w") as _out:
-                if self.check_full.isChecked():
-                    log(f'calling print_instrument_full with args {trackname} {options} {_out}')
-                    self.loaded.print_instrument_full(trackname, options, _out=_out)
-                else:
-                    log(f'calling print_instrument with args {trackname} {_out}')
-                    self.loaded.print_instrument(trackname, _out)
+    #     for trackname in [x for x, y in sample_map if y == '*']:
+    #         with open(self.get_instrument_filename(trackname), "w") as _out:
+    #             if self.check_full.isChecked():
+    #                 log(f'calling print_instrument_full with args {trackname} {options} {_out}')
+    #                 unlettered = self.loaded.print_instrument_full(trackname, options, _out=_out)
+    #             else:
+    #                 log(f'calling print_drumtrack with args {trackname} {_out}')
+    #                 unlettered = self.loaded.print_drumtrack(trackname, _out=_out)
+    #         if unlettered:
+    #             qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
-    def process_rppfile(self):
-        """Create output for Reaper project
+    #     for trackname in inst_samples:
+    #         with open(self.get_instrument_filename(trackname), "w") as _out:
+    #             if self.check_full.isChecked():
+    #                 log(f'calling print_instrument_full with args {trackname} {options} {_out}')
+    #                 self.loaded.print_instrument_full(trackname, options, _out=_out)
+    #             else:
+    #                 log(f'calling print_instrument with args {trackname} {_out}')
+    #                 self.loaded.print_instrument(trackname, _out)
 
-        this is assuming I only have projects that use MIDI data
-        where drums are in a separate track instead of one drum per track
-        """
-        with open(self.get_general_filename(), 'w') as _out:
-            self.loaded.print_general_data(self.check_full.isChecked(), _out)
-        # kijken of er dubbele namen zijn
-        test, dubbel = set(), set()
-        # for trackno, data in self.loaded.instruments.items():
-        for data in self.loaded.instruments.values():
-            if data in test:
-                dubbel.add(data)
-            else:
-                test.add(data)
-        self.loaded.prepare_print_instruments()
-        options = (self.max_events.value(), self.check_nonempty.isChecked())
-        if self.check_allinone.isChecked():
-            inst_list = list_items(self.list_samples)
-            inst_list += [x.rsplit(' ', 1)[0] for x in list_items(self.mark_samples)]
-            with open(self.get_general_filename(), 'a') as _out:
-                self.loaded.print_all_instruments_full(inst_list, options, _out)
-            return
-        for trackno, data in self.loaded.instruments.items():
-            name = data
-            if name in dubbel:
-                name += '-' + str(trackno)
-            with open(self.get_instrument_filename(name), 'w') as _out:
-                if self.check_full.isChecked():
-                    unlettered = self.loaded.print_instrument_full(trackno, options, _out)
-                else:
-                    unlettered = self.loaded.print_instrument(trackno, _out)
-            if unlettered:
-                qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
+    # def process_rppfile(self):
+    #     """Create output for Reaper project
 
-    def process_xmfile(self):
-        """create output for eXtended Module
-        """
-        drums = []
-        nondrums = []
-        samples, letters, printseq = self._assigned
-        samples_2 = [self.list_samples.item(x).text().split()[0] for x in range(
-            len(self.list_samples))]
+    #     this is assuming I only have projects that use MIDI data
+    #     where drums are in a separate track instead of one drum per track
+    #     """
+    #     with open(self.get_general_filename(), 'w') as _out:
+    #         self.loaded.print_general_data(self.check_full.isChecked(), _out)
+    #     # kijken of er dubbele namen zijn
+    #     test, dubbel = set(), set()
+    #     # for trackno, data in self.loaded.instruments.items():
+    #     for data in self.loaded.instruments.values():
+    #         if data in test:
+    #             dubbel.add(data)
+    #         else:
+    #             test.add(data)
+    #     self.loaded.prepare_print_instruments()
+    #     options = (self.max_events.value(), self.check_nonempty.isChecked())
+    #     if self.check_allinone.isChecked():
+    #         inst_list = list_items(self.list_samples)
+    #         inst_list += [x.rsplit(' ', 1)[0] for x in list_items(self.mark_samples)]
+    #         with open(self.get_general_filename(), 'a') as _out:
+    #             self.loaded.print_all_instruments_full(inst_list, options, _out)
+    #         return
+    #     for trackno, data in self.loaded.instruments.items():
+    #         name = data
+    #         if name in dubbel:
+    #             name += '-' + str(trackno)
+    #         with open(self.get_instrument_filename(name), 'w') as _out:
+    #             if self.check_full.isChecked():
+    #                 unlettered = self.loaded.print_instrument_full(trackno, options, _out)
+    #             else:
+    #                 unlettered = self.loaded.print_instrument(trackno, _out)
+    #         if unlettered:
+    #             qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
-        for num, name in enumerate(self.loaded.samplenames):
-            name = name[1]
-            if name in samples:
-                ix = samples.index(name)
-                drums.append((num + 1, letters[ix]))
-            elif name in samples_2:
-                ix = samples_2.index(name)
-                nondrums.append((num + 1, name))
+    # def process_xmfile(self):
+    #     """create output for eXtended Module
+    #     """
+    #     drums = []
+    #     nondrums = []
+    #     samples, letters, printseq = self._assigned
+    #     samples_2 = [self.list_samples.item(x).text().split()[0] for x in range(
+    #         len(self.list_samples))]
 
-        with open(self.get_general_filename(), "w") as out:
-            if drums:
-                self.loaded.print_general_data(drums, self.check_full.isChecked(),
-                                               out)
-            else:
-                self.loaded.print_general_data(full=self.check_full.isChecked(),
-                                               _out=out)
-        self.loaded.prepare_print_instruments(nondrums)
-        self.loaded.prepare_print_drums(printseq)
-        options = (self.max_events.value(), self.check_nonempty.isChecked())
-        if self.check_allinone.isChecked():
-            with open(self.get_general_filename(), 'a') as _out:
-                nondrums = [(x + 1, y) for x, y in enumerate(
-                    list_items(self.list_samples))]
-                self.loaded.print_all_instruments_full(nondrums, printseq, options,
-                                                       _out)
-            return
-        if drums:
-            with open(self.get_drums_filename(), "w") as out:
-                if self.check_full.isChecked():
-                    ## self.loaded.print_drums_full(drums, printseq, options, out)
-                    self.loaded.print_drums_full(printseq, options, out)
-                else:
-                    ## self.loaded.print_drums(drums, printseq, out)
-                    self.loaded.print_drums(printseq, out)
-        for number, name in nondrums:
-            with open(self.get_instrument_filename(name), "w") as out:
-                if self.check_full.isChecked():
-                    self.loaded.print_instrument_full(number, options, out)
-                else:
-                    self.loaded.print_instrument(number, out)
+    #     for num, name in enumerate(self.loaded.samplenames):
+    #         name = name[1]
+    #         if name in samples:
+    #             ix = samples.index(name)
+    #             drums.append((num + 1, letters[ix]))
+    #         elif name in samples_2:
+    #             ix = samples_2.index(name)
+    #             nondrums.append((num + 1, name))
+
+    #     with open(self.get_general_filename(), "w") as out:
+    #         if drums:
+    #             self.loaded.print_general_data(drums, self.check_full.isChecked(),
+    #                                            out)
+    #         else:
+    #             self.loaded.print_general_data(full=self.check_full.isChecked(),
+    #                                            _out=out)
+    #     self.loaded.prepare_print_instruments(nondrums)
+    #     self.loaded.prepare_print_drums(printseq)
+    #     options = (self.max_events.value(), self.check_nonempty.isChecked())
+    #     if self.check_allinone.isChecked():
+    #         with open(self.get_general_filename(), 'a') as _out:
+    #             nondrums = [(x + 1, y) for x, y in enumerate(
+    #                 list_items(self.list_samples))]
+    #             self.loaded.print_all_instruments_full(nondrums, printseq, options,
+    #                                                    _out)
+    #         return
+    #     if drums:
+    #         with open(self.get_drums_filename(), "w") as out:
+    #             if self.check_full.isChecked():
+    #                 ## self.loaded.print_drums_full(drums, printseq, options, out)
+    #                 self.loaded.print_drums_full(printseq, options, out)
+    #             else:
+    #                 ## self.loaded.print_drums(drums, printseq, out)
+    #                 self.loaded.print_drums(printseq, out)
+    #     for number, name in nondrums:
+    #         with open(self.get_instrument_filename(name), "w") as out:
+    #             if self.check_full.isChecked():
+    #                 self.loaded.print_instrument_full(number, options, out)
+    #             else:
+    #                 self.loaded.print_instrument(number, out)
 
     @waiting_cursor
     def do_creation(self):
@@ -940,14 +940,18 @@ class MainFrame(qtw.QWidget):
         self.dts = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
 
         self.loaded.short_format = not self.check_align.isChecked()
-        go_dict = {'mod': self.process_modfile,
-                   'mid': self.process_midifile,
-                   'xm': self.process_xmfile,
-                   'med': self.process_medfile,
-                   'mmp': self.process_mmpfile,
-                   'mmpz': self.process_mmpfile,
-                   'rpp': self.process_rppfile}
-        go_dict[self.ftype]()
+        self.loaded.show_continual = self.check_full.isChecked()
+        # go_dict = {'mod': self.process_modfile,
+        #            'mid': self.process_midifile,
+        #            'xm': self.process_xmfile,
+        #            'med': self.process_medfile,
+        #            'mmp': self.process_mmpfile,
+        #            'mmpz': self.process_mmpfile,
+        #            'rpp': self.process_rppfile}
+        # go_dict[self.ftype]()
+        unlettered = self.loaded.process(self)
+        if unlettered:
+            qtw.QMessageBox.information(self, self.title, '\n'.join(unlettered))
 
 
 def main():

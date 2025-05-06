@@ -89,6 +89,8 @@ class ModFile:
         self.filename = filename
         self.samples = {}
         self.patterns = {}
+        self.short_format = None
+        self.show_continual = None
         ## self.patterns = collections.defaultdict(lambda: collections.defaultdict(list))
         self.read()
 
@@ -200,6 +202,51 @@ class ModFile:
         self.lengths = []
         for x in self.playseq:
             self.lengths.extend(newlentab[x])
+
+    def process(self, gui):
+        """Create output for NoiseTracker/SoundTracker/MadTracker module
+        """
+        drums = []
+        nondrums = []
+        samples, letters, printseq = gui.assigned
+
+        for num, data in gui.samples.items():
+            if data[0] in samples:
+                ix = samples.index(data[0])
+                drums.append((num + 1, letters[ix]))
+
+        for name in gui.list_items(gui.list_samples):
+            ix = {y[0]: x for x, y in gui.samples.items()}[name]
+            nondrums.append((ix + 1, name))
+
+        with open(gui.get_general_filename(), "w") as out:
+            if drums:
+                self.print_general_data(drums, gui.show_continual, out)
+            else:
+                self.print_general_data(full=gui.show_continual, _out=out)
+        self.prepare_print_instruments(nondrums)
+        self.prepare_print_drums(printseq)
+        options = (gui.max_events.value(), gui.check_nonempty.isChecked())
+        if gui.check_allinone.isChecked():
+            druminst = [(x, y) for x, y in drums if len(y) == 1]
+            log(f'calling print_all_instruments_full with args {nondrums} {druminst} {printseq} '
+                '{options} {self.get_general_filename()}')
+            with open(gui.get_general_filename(), 'a') as _out:
+                self.print_all_instruments_full(nondrums, druminst, printseq, options, _out)
+            return []
+        if drums:
+            with open(gui.get_drums_filename(), "w") as out:
+                if gui.check_full.isChecked():
+                    self.print_drums_full(printseq, options, out)
+                else:
+                    self.print_drums(printseq, out)
+        for number, name in nondrums:
+            with open(gui.get_instrument_filename(name), "w") as out:
+                if gui.check_full.isChecked():
+                    self.print_instrument_full(number, options, out)
+                else:
+                    self.print_instrument(number, out)
+        return []
 
     def remove_duplicate_patterns(self, sampnum):
         """show patterns only once for incontiguous timelines

@@ -65,6 +65,8 @@ class MedModule:
         self.filename = filename
         self.pattern_data = {}
         self.pattern_lengths = []
+        self.short_format = None
+        self.show_continual = None
         self.read()
         if not self._pattern_data:
             raise ValueError('Empty module !?')
@@ -201,6 +203,55 @@ class MedModule:
             self.playseq.extend(newpattnums[patt])
             self.all_pattern_lengths.extend(all_patt_lengths[patt])
         self.all_pattern_lengths = self.all_pattern_lengths[:self.songlen]
+
+    def process(self, gui):
+        """Create output for (Octa)Med module
+        """
+        drums = []
+        nondrums = []
+        samples, letters, printseq = gui.assigned
+        options = (gui.max_events.value(), gui.check_nonempty.isChecked())
+
+        for num, name in enumerate(self.samplenames):
+            name = name[1]
+            if name in samples:
+                ix = samples.index(name)
+                drums.append((num + 1, letters[ix]))
+
+        for name in gui.list_items(gui.list_samples):
+            ix = [y for x, y in self.samplenames].index(name)
+            nondrums.append((ix + 1, name))
+
+        with open(gui.get_general_filename(), "w") as out:
+            if drums:
+                log(f'calling print_general_data with args {drums} {gui.show_continual} {out}')
+                self.print_general_data(drums, gui.show_continual, out)
+            else:
+                log(f'calling print_general_data with args {gui.show_continual} {out}')
+                self.print_general_data(full=gui.show_continual, _out=out)
+        log(f'calling prepare_print_instruments with argument {nondrums}')
+        self.prepare_print_instruments(nondrums)
+        self.prepare_print_drums(printseq)
+        if gui.check_allinone.isChecked():
+            with open(gui.get_general_filename(), 'a') as _out:
+                self.print_all_instruments_full(nondrums, printseq, options, _out)
+            return []
+        if drums:
+            with open(gui.get_drums_filename(), "w") as out:
+                if gui.check_full.isChecked():
+                    ## self.print_drums_full(drums, printseq, options, out)
+                    self.print_drums_full(printseq, options, out)
+                else:
+                    ## self.print_drums(drums, printseq, out)
+                    self.print_drums(printseq, out)
+        for number, name in nondrums:
+            with open(gui.get_instrument_filename(name), "w") as out:
+                if gui.check_full.isChecked():
+                    self.print_instrument_full(name, options, out)
+                else:
+                    log(f'calling print_instrument with args {number} {out}')
+                    self.print_instrument(number, out)
+        return []
 
     def checks(self):
         """compare some values read from the file

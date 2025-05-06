@@ -32,6 +32,8 @@ class RppFile:
         # mapping van trackid op volgnr (s) op data
         self.patterns = collections.defaultdict(list)
         self.pattern_list = collections.defaultdict(list)
+        self.short_format = None
+        self.show_continual = None
         self.read()
 
     def start_track(self, data):
@@ -54,11 +56,11 @@ class RppFile:
         else:
             self.pattern_props = {'name': name}
 
-    def start_item(self, data):
+    def start_item(self):  # , data):
         """start of the block containing the pattern e.g.
           <ITEM
         """
-        ## log("in start_item: {}".formatdata))
+        ## log("in start_item: {}".format(data))
         self.in_pattern = True
         self.pattern_no = 0
 
@@ -94,7 +96,7 @@ class RppFile:
         tick = int(data[0])
         evtype = data[1][0]
         channel = data[1][1]
-        pitch = eval('0x' + data[2])
+        pitch = int(data[2], base=16)
         velocity = data[3]
         self.timing += tick
         if self.track_start or evtype == 'c':   # start new pattern
@@ -124,7 +126,7 @@ class RppFile:
         self.pattern_events[pitch].append(now)
         self.pattern_length = now
 
-    def finalize(self, data):
+    def finalize(self):  # , data):
         """end of block starting with <, same on any level:
          >
         """
@@ -252,6 +254,45 @@ class RppFile:
         self.pattern_list = new_pattern_list
         self.instruments = {x: y for x, y in self.instruments.items() if x in
                             self.pattern_list}
+
+    def process(self, gui):
+        """Create output for Reaper project
+
+        this is assuming I only have projects that use MIDI data
+        where drums are in a separate track instead of one drum per track
+        """
+        with open(gui.get_general_filename(), 'w') as _out:
+            self.print_general_data(gui.show_continual, _out)
+        # kijken of er dubbele namen zijn
+        test, dubbel = set(), set()
+        # for trackno, data in self.instruments.items():
+        for data in self.instruments.values():
+            if data in test:
+                dubbel.add(data)
+            else:
+                test.add(data)
+        self.prepare_print_instruments()
+        options = (gui.max_events.value(), gui.check_nonempty.isChecked())
+        if gui.check_allinone.isChecked():
+            inst_list = gui.list_items(gui.list_samples)
+            inst_list += [x.rsplit(' ', 1)[0] for x in gui.list_items(gui.mark_samples)]
+            with open(gui.get_general_filename(), 'a') as _out:
+                self.print_all_instruments_full(inst_list, options, _out)
+            return []
+        all_unlettered = []
+        for trackno, data in self.instruments.items():
+            name = data
+            if name in dubbel:
+                name += '-' + str(trackno)
+            with open(gui.get_instrument_filename(name), 'w') as _out:
+                if gui.check_full.isChecked():
+                    self.print_instrument_full(trackno, options, _out)
+                    unlettered = []
+                else:
+                    unlettered = self.print_instrument(trackno, _out)
+            for line in unlettered:
+                all_unlettered.append(f'track {trackno}: {line}')
+        return all_unlettered
 
     def print_general_data(self, full=False, stream=sys.stdout):
         """create the "overview" file (sample and pattern lists)

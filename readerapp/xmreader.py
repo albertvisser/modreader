@@ -43,6 +43,8 @@ class ExtModule:
         self._pattern_map = {}
         self.pattern_lengths = []
         self.instruments = {}
+        self.short_format = None
+        self.show_continual = None
         self.read()
 
         # pattern list en map bijwerken met uitgesplitste
@@ -191,6 +193,53 @@ class ExtModule:
                 if not self.instruments[instnum + 1][0]:
                     self.instruments[instnum + 1][0] = samples[0][0].split('.')[0]
                 self.instruments[instnum + 1].append(samples)
+
+    def process(self, gui):
+        """create output for eXtended Module
+        """
+        drums = []
+        nondrums = []
+        samples, letters, printseq = gui.assigned
+        samples_2 = [gui.list_samples.item(x).text().split()[0] for x in range(
+            len(gui.list_samples))]
+
+        for num, name in enumerate(self.samplenames):
+            name = name[1]
+            if name in samples:
+                ix = samples.index(name)
+                drums.append((num + 1, letters[ix]))
+            elif name in samples_2:
+                ix = samples_2.index(name)
+                nondrums.append((num + 1, name))
+
+        with open(gui.get_general_filename(), "w") as out:
+            if drums:
+                self.print_general_data(drums, self.show_continual, out)
+            else:
+                self.print_general_data(full=self.show_continual, _out=out)
+        self.prepare_print_instruments(nondrums)
+        self.prepare_print_drums(printseq)
+        options = (gui.max_events.value(), gui.check_nonempty.isChecked())
+        if gui.check_allinone.isChecked():
+            with open(gui.get_general_filename(), 'a') as _out:
+                nondrums = [(x + 1, y) for x, y in enumerate(gui.list_items(gui.list_samples))]
+                self.print_all_instruments_full(nondrums, printseq, options, _out)
+            return []
+        if drums:
+            with open(gui.get_drums_filename(), "w") as out:
+                if gui.check_full.isChecked():
+                    ## self.print_drums_full(drums, printseq, options, out)
+                    self.print_drums_full(printseq, options, out)
+                else:
+                    ## self.print_drums(drums, printseq, out)
+                    self.print_drums(printseq, out)
+        for number, name in nondrums:
+            with open(gui.get_instrument_filename(name), "w") as out:
+                if gui.check_full.isChecked():
+                    self.print_instrument_full(number, options, out)
+                else:
+                    self.print_instrument(number, out)
+        return []
 
     def remove_duplicate_patterns(self, sampnum):
         """show patterns only once for incontiguous timelines
