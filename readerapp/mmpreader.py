@@ -234,7 +234,10 @@ class MMPFile:
             ## pattname = patt.get('name')
             pattstart = int(patt.get('pos'))
             pattstart_split = pattstart // (shared.time_unit // 2)
-            pattlen = int(patt.get('len'))
+            pattlen = int(patt.get('len', 0))
+            # if not pattlen:
+            #     for note in patt.findall('note'):
+            #         pattlen += int(note.get('len'))
             pattlen_split = pattlen // shared.timing_unit
             notes, notes_split = [], []
             notelist = patt.findall('note')
@@ -397,11 +400,12 @@ class MMPFile:
         for trackname in self.tracknames:
             is_drumtrack = trackname in self.druminst
             # bepaal max. lengte
-            start, _, lng = self.patterndata[trackname][-1]
+            start, events, lng = self.patterndata[trackname][-1]
+            lng = events[-1][1]  # correctie want lng is alleen de lengte van de gespeelde noten
             for pattern in self.patterndata[trackname]:
                 self.all_notes[trackname].update([x[0] for x in pattern[1]])
             ## total_length = int((start + len) / shared.timing_unit)
-            current_length = (start + lng) // shared.timing_unit
+            current_length = (start + lng) // shared.timing_unit + 1
             self.total_length = max((current_length, self.total_length))
             empty = shared.empty[is_drumtrack]
             for note in self.all_notes[trackname]:
