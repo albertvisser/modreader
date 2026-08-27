@@ -224,11 +224,11 @@ class MedModule:
 
         with open(gui.get_general_filename(), "w") as out:
             if drums:
-                log(f'calling print_general_data with args {drums} {gui.show_continual} {out}')
-                self.print_general_data(drums, gui.show_continual, out)
+                log(f'calling print_general_data with args {drums} {self.show_continual} {out}')
+                self.print_general_data(drums, self.show_continual, out)
             else:
-                log(f'calling print_general_data with args {gui.show_continual} {out}')
-                self.print_general_data(full=gui.show_continual, _out=out)
+                log(f'calling print_general_data with args {self.show_continual} {out}')
+                self.print_general_data(full=self.show_continual, _out=out)
         log(f'calling prepare_print_instruments with argument {nondrums}')
         self.prepare_print_instruments(nondrums)
         self.prepare_print_drums(printseq)

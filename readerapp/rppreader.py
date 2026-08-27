@@ -262,7 +262,7 @@ class RppFile:
         where drums are in a separate track instead of one drum per track
         """
         with open(gui.get_general_filename(), 'w') as _out:
-            self.print_general_data(gui.show_continual, _out)
+            self.print_general_data(self.show_continual, _out)
         # kijken of er dubbele namen zijn
         test, dubbel = set(), set()
         # for trackno, data in self.instruments.items():

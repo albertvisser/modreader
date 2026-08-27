@@ -221,9 +221,9 @@ class ModFile:
 
         with open(gui.get_general_filename(), "w") as out:
             if drums:
-                self.print_general_data(drums, gui.show_continual, out)
+                self.print_general_data(drums, self.show_continual, out)
             else:
-                self.print_general_data(full=gui.show_continual, _out=out)
+                self.print_general_data(full=self.show_continual, _out=out)
         self.prepare_print_instruments(nondrums)
         self.prepare_print_drums(printseq)
         options = (gui.max_events.value(), gui.check_nonempty.isChecked())

@@ -167,7 +167,7 @@ class MMPFile:
             #      _out)
             log(f'calling print_general_data with args {drumkits} {gui.check_full.isChecked()}'
                 ' {_out}')
-            gui.print_general_data(drumkits, self.show_continual, _out)
+            self.print_general_data(drumkits, self.show_continual, _out)
 
         #  log('calling self.prepare_print_instruments with argument {}'.format(
         #      [x for x, y in sample_map if y == '*']))
