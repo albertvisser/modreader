@@ -197,7 +197,7 @@ class MainFrame(qtw.QWidget):
 
         hbox = qtw.QHBoxLayout()
         hbox.addStretch()
-        hbox.addWidget(qtw.QLabel("Destination:", self))
+        hbox.addWidget(qtw.QLabel("Destination directory:", self))
 
         self.dest = qtw.QLabel(str(shared.basedir), self)
         hbox.addWidget(self.dest)
@@ -365,7 +365,7 @@ class MainFrame(qtw.QWidget):
         self.usedtohave = {}
         if self.drums:
             self.mark_samples.addItems(self.drums)
-        self.newdir = str(shared.basedir / pathlib.Path(pad).name.replace('_', ' '))
+        self.newdir = str(shared.basedir / pathlib.Path(pad).with_suffix('').name.replace('_', '-'))
         self.dest.setText(self.newdir)
 
     def activate_left(self):
